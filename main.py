@@ -162,8 +162,8 @@ def check_auth(yuki_cookie):
 @app.get("/", response_class=HTMLResponse)
 def home(request: Request, yuki: Union[str, None] = Cookie(None)):
     if check_auth(yuki):
-        context = {"request": request}
-        return templates.TemplateResponse("home.html", context)
+        # 明示的に辞書をコンテキストとして渡す
+        return templates.TemplateResponse(request=request, name="home.html", context={})
     return RedirectResponse("/genesis")
 
 @app.get('/watch', response_class=HTMLResponse)
@@ -171,7 +171,6 @@ def watch_video(v: str, request: Request, yuki: Union[str, None] = Cookie(None))
     if not check_auth(yuki): return RedirectResponse("/")
     data = get_video_data(v)
     context = {
-        "request": request,
         "videoid": v,
         "video_title": data[0]['title'],
         "videourls": data[0]['video_urls'],
@@ -183,15 +182,15 @@ def watch_video(v: str, request: Request, yuki: Union[str, None] = Cookie(None))
         "view_count": data[0]['view_count'],
         "recommended_videos": data[1]
     }
-    return templates.TemplateResponse("watch.html", context)
+    return templates.TemplateResponse(request=request, name="watch.html", context=context)
 
 @app.get("/search", response_class=HTMLResponse)
 def search(q: str, request: Request, page: int = 1, yuki: Union[str, None] = Cookie(None)):
     if not check_auth(yuki): return RedirectResponse("/")
     raw = request_api(f"/search?q={urllib.parse.quote(q)}&page={page}&hl=jp", invidious_api.search)
     results = json.loads(raw)
-    context = {"request": request, "results": results, "word": q}
-    return templates.TemplateResponse("search.html", context)
+    context = {"results": results, "word": q}
+    return templates.TemplateResponse(request=request, name="search.html", context=context)
 
 @app.get("/thumbnail")
 def thumbnail(v: str):
