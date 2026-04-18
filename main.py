@@ -26,7 +26,7 @@ async def fetch_api(path: str, params: dict = None):
 
 @app.get("/", response_class=HTMLResponse)
 async def home(request: Request):
-    return templates.TemplateResponse("index.html", {"request": request})
+    return templates.TemplateResponse("home.html", {"request": request})
 
 @app.get("/suggest")
 async def suggest(keyword: str):
