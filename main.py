@@ -108,24 +108,32 @@ def get_video_data(videoid):
     raw = request_api(f"/videos/{urllib.parse.quote(videoid)}", invidious_api.video)
     t = json.loads(raw)
     
+    if "error" in t or not isinstance(t, dict):
+        return [{"video_urls": [], "description_html": "Error", "title": "Error", "length_text": "", "author": "", "author_thumbnails_url": "", "view_count": 0, "like_count": 0, "subscribers_count": "0", "streamUrls": []}, []]
+
     recommended = t.get('recommendedVideos') or t.get('recommendedvideo') or []
     adaptive = t.get('adaptiveFormats', [])
     
-    # 画質情報の抽出
     stream_urls = [
         {'url': s['url'], 'resolution': s.get('resolution', 'N/A')}
         for s in adaptive if s.get('container') == 'webm' and s.get('resolution')
     ]
     
+    format_streams = t.get("formatStreams", [])
+    video_urls = list(reversed([i["url"] for i in format_streams if "url" in i]))[:2]
+    
+    author_thumbnails = t.get("authorThumbnails", [{"url":""}])
+    author_thumbnails_url = author_thumbnails[-1]["url"] if author_thumbnails else ""
+    
     return [
         {
-            'video_urls': list(reversed([i["url"] for i in t.get("formatStreams", [])]))[:2],
+            'video_urls': video_urls,
             'description_html': t.get("descriptionHtml", "").replace("\n", "<br>"),
             'title': t.get("title", "Unknown"),
             'length_text': str(datetime.timedelta(seconds=t.get("lengthSeconds", 0))),
             'author_id': t.get("authorId"),
             'author': t.get("author"),
-            'author_thumbnails_url': t.get("authorThumbnails", [{"url":""}])[-1]["url"],
+            'author_thumbnails_url': author_thumbnails_url,
             'view_count': t.get("viewCount", 0),
             'like_count': t.get("likeCount", 0),
             'subscribers_count': t.get("subCountText", "0"),
@@ -133,9 +141,9 @@ def get_video_data(videoid):
         },
         [
             {
-                "video_id": i["videoId"],
-                "title": i["title"],
-                "author": i["author"],
+                "video_id": i.get("videoId", ""),
+                "title": i.get("title", "Unknown"),
+                "author": i.get("author", "Unknown"),
                 "view_count_text": i.get("viewCountText", "")
             } for i in recommended
         ]
@@ -145,9 +153,6 @@ def get_video_data(videoid):
 app = FastAPI(docs_url=None, redoc_url=None, openapi_url=None)
 app.add_middleware(GZipMiddleware, minimum_size=1000)
 
-# 静的ファイルとテンプレート（フォルダが存在することを確認してください）
-# os.makedirs("templates", exist_ok=True)
-# os.makedirs("statics/css", exist_ok=True)
 templates = Jinja2Templates(directory="templates")
 
 def check_auth(yuki_cookie):
@@ -157,14 +162,15 @@ def check_auth(yuki_cookie):
 @app.get("/", response_class=HTMLResponse)
 def home(request: Request, yuki: Union[str, None] = Cookie(None)):
     if check_auth(yuki):
-        return templates.TemplateResponse("home.html", {"request": request})
-    return RedirectResponse("/genesis") # または認証ページへ
+        context = {"request": request}
+        return templates.TemplateResponse("home.html", context)
+    return RedirectResponse("/genesis")
 
 @app.get('/watch', response_class=HTMLResponse)
 def watch_video(v: str, request: Request, yuki: Union[str, None] = Cookie(None)):
     if not check_auth(yuki): return RedirectResponse("/")
     data = get_video_data(v)
-    return templates.TemplateResponse("watch.html", {
+    context = {
         "request": request,
         "videoid": v,
         "video_title": data[0]['title'],
@@ -173,20 +179,23 @@ def watch_video(v: str, request: Request, yuki: Union[str, None] = Cookie(None))
         "description": data[0]['description_html'],
         "author": data[0]['author'],
         "author_icon": data[0]['author_thumbnails_url'],
+        "subscribers_count": data[0]['subscribers_count'],
+        "view_count": data[0]['view_count'],
         "recommended_videos": data[1]
-    })
+    }
+    return templates.TemplateResponse("watch.html", context)
 
 @app.get("/search", response_class=HTMLResponse)
 def search(q: str, request: Request, page: int = 1, yuki: Union[str, None] = Cookie(None)):
     if not check_auth(yuki): return RedirectResponse("/")
     raw = request_api(f"/search?q={urllib.parse.quote(q)}&page={page}&hl=jp", invidious_api.search)
     results = json.loads(raw)
-    return templates.TemplateResponse("search.html", {"request": request, "results": results, "word": q})
+    context = {"request": request, "results": results, "word": q}
+    return templates.TemplateResponse("search.html", context)
 
 @app.get("/thumbnail")
 def thumbnail(v: str):
-    # 直接YouTubeの画像サーバーから取得するプロキシ
-    img_res = requests.get(f"https://img.youtube.com/vi/{v}/0.jpg")
+    img_res = requests.get(f"http://googleusercontent.com/youtube.com/vi/{v}/0.jpg")
     return Response(content=img_res.content, media_type="image/jpeg")
 
 @app.get("/api/update", response_class=PlainTextResponse)
@@ -195,11 +204,9 @@ def force_update():
     invidious_api = InvidiousAPI()
     return "API Instance List Updated"
 
-# --- [BBS INTEGRATION] ---
 @app.get("/bbs", response_class=HTMLResponse)
 @cache(120)
 def view_bbs(request: Request):
-    # 本来は外部のBBSサーバーから取得するが、ここでは簡易版
     return HTMLResponse("<h1>BBS (Integrated)</h1><p>BBS functionality is active.</p>")
 
 if __name__ == "__main__":
