@@ -1,38 +1,40 @@
-{% extends "index.html" %}
-{% block content %}
-<style>
-    /* 検索結果専用スタイル */
-    #contents { justify-content: flex-start; padding-top: 100px; min-height: auto; }
-    .result-item { 
-        background: var(--glass-bg); backdrop-filter: blur(5px);
-        border-radius: 15px; margin-bottom: 20px; padding: 15px;
-        display: flex; gap: 20px; width: 100%; max-width: 900px;
-        transition: transform 0.2s;
-    }
-    .result-item:hover { transform: translateY(-3px); }
-    .res-thumb { width: 240px; border-radius: 10px; }
-    @media (max-width: 600px) { .result-item { flex-direction: column; } .res-thumb { width: 100%; } }
-</style>
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <title>「{{ word }}」の検索結果</title>
+    <link rel="stylesheet" href="/css/style.css">
+</head>
+<body>
+    <header>
+        <div class="logo"><a href="/"><h2>仙人Tube+</h2></a></div>
+        <form action="/search" class="search-bar">
+            <input type="text" name="q" value="{{ word }}">
+            <button type="submit">🔍</button>
+        </form>
+    </header>
 
-<div id="contents">
-    <div class="container">
-        <h4 class="mb-4">「{{ q }}」の検索結果</h4>
-        {% for item in results %}
-        {% if item.type == "video" %}
-        <div class="result-item">
-            <a href="/watch?v={{ item.videoId }}">
-                <img src="{{ item.videoThumbnails[0].url }}" class="res-thumb">
-            </a>
-            <div>
-                <a href="/watch?v={{ item.videoId }}" style="text-decoration:none; color:inherit;">
-                    <h5 style="margin:0 0 10px 0;">{{ item.title }}</h5>
+    <main class="container">
+        <div class="video-grid">
+            {% for item in results %}
+            {% if item.type == 'video' %}
+            <div class="video-card">
+                <a href="/watch?v={{ item.videoId }}">
+                    <div class="thumbnail-container">
+                        <img src="/thumbnail?v={{ item.videoId }}" class="thumbnail" loading="lazy">
+                    </div>
+                    <div class="video-info">
+                        <img src="/thumbnail?v={{ item.videoId }}" class="author-icon-mini"> <div class="title-area">
+                            <div class="video-title">{{ item.title }}</div>
+                            <div class="video-meta">{{ item.author }}</div>
+                            <div class="video-meta">{{ item.viewCountText }} • {{ item.publishedText }}</div>
+                        </div>
+                    </div>
                 </a>
-                <small style="color:var(--primary-color)">{{ item.author }}</small><br>
-                <small class="text-muted">{{ item.viewCountText }} • {{ item.publishedText }}</small>
             </div>
+            {% endif %}
+            {% endfor %}
         </div>
-        {% endif %}
-        {% endfor %}
-    </div>
-</div>
-{% endblock %}
+    </main>
+</body>
+</html>
