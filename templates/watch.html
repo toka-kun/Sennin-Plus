@@ -2,98 +2,65 @@
 <html lang="ja">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>{{ video_title }} - 仙人Tube Plus</title>
+    <title>{{ video_title }} - 仙人Tube+</title>
     <link rel="stylesheet" href="/css/style.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
     <style>
-        .watch-grid { display: grid; grid-template-columns: 1fr 350px; gap: 24px; padding: 24px; max-width: 1700px; margin: 0 auto; }
-        @media (max-width: 1000px) { .watch-grid { grid-template-columns: 1fr; } }
-        
-        #player { width: 100%; border-radius: 16px; box-shadow: 0 10px 30px rgba(0,0,0,0.1); background: #000; }
-        
-        .video-details { margin-top: 20px; }
-        .quality-tab { display: flex; gap: 8px; margin: 15px 0; overflow-x: auto; padding-bottom: 5px; }
-        .q-badge {
-            background: #f2f2f2; border: none; padding: 8px 16px; border-radius: 8px;
-            cursor: pointer; font-weight: 500; font-size: 0.9rem; white-space: nowrap;
-        }
-        .q-badge.active { background: #0f0f0f; color: white; }
-        
-        .author-box {
-            display: flex; align-items: center; justify-content: space-between;
-            margin: 20px 0; padding: 10px 0; border-bottom: 1px solid #eee;
-        }
-        .desc-box { background: #f2f2f2; padding: 16px; border-radius: 12px; font-size: 0.95rem; }
+        .watch-grid { display: grid; grid-template-columns: 1fr 380px; gap: 30px; padding: 90px 40px 40px; max-width: 1600px; margin: 0 auto; }
+        #player { width: 100%; border-radius: 20px; box-shadow: 0 20px 50px rgba(0,0,0,0.15); background: #000; }
+        .video-card-watch { background: var(--card-bg); border-radius: 20px; padding: 25px; margin-top: 20px; box-shadow: 0 4px 15px rgba(0,0,0,0.05); }
+        .q-badge { background: rgba(0, 123, 255, 0.1); color: var(--primary-color); border: none; padding: 8px 15px; border-radius: 50px; cursor: pointer; font-weight: 700; margin-right: 5px; }
+        .q-badge.active { background: var(--primary-color); color: #fff; }
+        @media (max-width: 1000px) { .watch-grid { grid-template-columns: 1fr; padding: 80px 15px; } }
     </style>
 </head>
 <body>
-    <header>
-        <div class="logo"><a href="/"><h2>仙人Tube+</h2></a></div>
-        <form action="/search" class="search-bar">
-            <input type="text" name="q" placeholder="動画を検索">
-            <button type="submit">🔍</button>
+    <header id="top-bar">
+        <div class="logo-small" onclick="location.href='/'"><h2>仙人Tube<sup>+</sup></h2></div>
+        <form action="/search" class="search-container">
+            <i class="fas fa-search"></i>
+            <input type="search" name="q" placeholder="動画を検索...">
         </form>
+        <div style="width: 40px;"></div>
     </header>
 
     <div class="watch-grid">
         <div class="main-column">
-            <video id="player" controls autoplay poster="/thumbnail?v={{ videoid }}">
+            <video id="player" controls autoplay>
                 <source src="{{ videourls[0] }}" type="video/mp4">
             </video>
-
-            <div class="video-details">
-                <h1 style="font-size: 1.3rem; margin: 12px 0;">{{ video_title }}</h1>
-                
-                <div class="quality-tab">
-                    <span style="align-self: center; font-size: 0.9rem; color: var(--text-sub);">画質: </span>
+            
+            <div class="video-card-watch">
+                <h1 style="font-size: 1.4rem; margin: 0 0 15px;">{{ video_title }}</h1>
+                <div style="margin-bottom: 20px;">
                     {% for stream in streamUrls %}
-                    <button class="q-badge" onclick="changeQuality('{{ stream.url }}', this)">{{ stream.resolution }}</button>
+                    <button class="q-badge" onclick="location.href='{{ stream.url }}'">{{ stream.resolution }}</button>
                     {% endfor %}
                 </div>
-
-                <div class="author-box">
-                    <div style="display: flex; gap: 12px; align-items: center;">
-                        <img src="{{ author_icon }}" style="width: 40px; height: 40px; border-radius: 50%;">
-                        <div>
-                            <div style="font-weight: 600;">{{ author }}</div>
-                            <div style="font-size: 0.8rem; color: var(--text-sub);">登録者数 {{ subscribers_count }}</div>
-                        </div>
+                <div style="display: flex; align-items: center; gap: 15px;">
+                    <img src="{{ author_icon }}" style="width: 45px; height: 45px; border-radius: 50%;">
+                    <div>
+                        <div style="font-weight: 700;">{{ author }}</div>
+                        <div style="font-size: 0.8rem; color: #888;">登録者数 {{ subscribers_count }}</div>
                     </div>
                 </div>
-
-                <div class="desc-box">
-                    <div style="font-weight: 600; margin-bottom: 8px;">再生回数 {{ view_count }} 回</div>
-                    {{ description | safe }}
-                </div>
+                <hr style="border: none; border-top: 1px solid var(--border-color); margin: 20px 0;">
+                <div style="font-size: 0.95rem; line-height: 1.8;">{{ description | safe }}</div>
             </div>
         </div>
 
         <div class="side-column">
-            <h4 style="margin-top: 0;">関連動画</h4>
+            <h3 style="margin: 0 0 20px;">関連動画</h3>
             {% for v in recommended_videos %}
-            <a href="/watch?v={{ v.video_id }}" style="display: flex; gap: 12px; margin-bottom: 16px;">
-                <img src="/thumbnail?v={{ v.video_id }}" style="width: 140px; height: 80px; border-radius: 8px; object-fit: cover;">
-                <div style="flex: 1;">
-                    <div style="font-size: 0.85rem; font-weight: 600; line-height: 1.2; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;">
-                        {{ v.title }}
-                    </div>
-                    <div style="font-size: 0.75rem; color: var(--text-sub); margin-top: 4px;">{{ v.author }}</div>
+            <a href="/watch?v={{ v.video_id }}" style="display: flex; gap: 12px; margin-bottom: 15px; text-decoration: none; color: inherit;">
+                <img src="/thumbnail?v={{ v.video_id }}" style="width: 150px; height: 85px; border-radius: 12px; object-fit: cover;">
+                <div>
+                    <div style="font-size: 0.9rem; font-weight: 700; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;">{{ v.title }}</div>
+                    <div style="font-size: 0.75rem; color: #888; margin-top: 5px;">{{ v.author }}</div>
                 </div>
             </a>
             {% endfor %}
         </div>
     </div>
-
-    <script>
-        function changeQuality(url, btn) {
-            const video = document.getElementById('player');
-            const currentTime = video.currentTime;
-            video.src = url;
-            video.currentTime = currentTime;
-            video.play();
-            document.querySelectorAll('.q-badge').forEach(b => b.classList.remove('active'));
-            btn.classList.add('active');
-        }
-    </script>
 </body>
 </html>
