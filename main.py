@@ -6,6 +6,7 @@ import httpx
 import asyncio
 import json
 import random
+from datetime import datetime
 
 app = FastAPI()
 
@@ -175,7 +176,7 @@ async def watch(request: Request, v: str = Query(...)):
                 "view_count_text": rec.get("viewCountText")
             })
 
-        return templates.TemplateResponse("watch.html", {
+        response = templates.TemplateResponse("watch.html", {
             "request": request,
             "videoid": v,
             "video_title": video_data.get("title"),
@@ -191,8 +192,47 @@ async def watch(request: Request, v: str = Query(...)):
             "recommended_videos": recommended,
             "comments": comment_data.get("comments", []) if not isinstance(comment_data, Exception) else []
         })
+
+        # --- 視聴履歴保存ロジック ---
+        history_cookie = request.cookies.get("history", "[]")
+        try:
+            history = json.loads(history_cookie)
+        except:
+            history = []
+
+        # 重複削除して先頭に追加
+        history = [item for item in history if item.get("videoId") != v]
+        history.append({
+            "videoId": v,
+            "title": video_data.get("title"),
+            "author": video_data.get("author"),
+            "added_at": datetime.now().strftime("%Y-%m-%d %H:%M")
+        })
+        # 直近50件に制限
+        if len(history) > 50:
+            history = history[-50:]
+
+        response.set_cookie(key="history", value=json.dumps(history), max_age=2592000, httponly=True)
+        return response
+
     except Exception as e:
         return HTMLResponse(content=f"Error: {str(e)}", status_code=500)
+
+@app.get("/history", response_class=HTMLResponse)
+async def history_page(request: Request):
+    history_data = request.cookies.get("history", "[]")
+    try:
+        history_list = json.loads(history_data)
+    except:
+        history_list = []
+    history_list.reverse() # 新しい順
+    return templates.TemplateResponse("history.html", {"request": request, "history": history_list})
+
+@app.get("/history/clear")
+async def clear_history():
+    response = RedirectResponse(url="/history")
+    response.delete_cookie("history")
+    return response
 
 @app.get("/playlist", response_class=HTMLResponse)
 async def playlist(request: Request, list: str = Query(...)):
