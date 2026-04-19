@@ -132,47 +132,43 @@
         <div class="video-grid">
             {% for result in results %}
                 <div class="grid-item">
-                    {% if result["type"] == "video" %}
-                    <a href="/watch?v={{ result['videoId'] or result['id'] }}" class="video-card">
+                    {# --- 動画タイプ --- #}
+                    {% if result["type"] == "video" or result["videoId"] or (result["id"] and result["type"] != "channel" and result["type"] != "playlist") %}
+                    {% set vid = result["videoId"] or result["id"] %}
+                    <a href="/watch?v={{ vid }}" class="video-card">
                         <div class="thumbnail-box">
-                            <img class="thumbnail" loading="lazy" src="{% if proxy == 'True' %}/thumbnail?v={{ result['videoId'] or result['id'] }}{% else %}http://googleusercontent.com/youtube.com/vi/{{ result['videoId'] or result['id'] }}/0.jpg{% endif %}" onerror="this.src='/thumbnail?v={{ result['videoId'] or result['id'] }}';">
-                            <p class="length-tag">{{ result["length"] or result["lengthText"] or result["length_text"] }}</p>
+                            <img class="thumbnail" loading="lazy" src="/thumbnail?v={{ vid }}" onerror="this.src='https://img.youtube.com/vi/{{ vid }}/mqdefault.jpg';">
+                            <p class="length-tag">{{ result["lengthText"] or result["length"] or result["length_text"] or "" }}</p>
                         </div>
                         <div class="video-info">
-                            {% set thumb = "" %}
-                            {% if result["authorThumbnails"] %}
-                                {% set thumb = result["authorThumbnails"][-1]["url"] %}
-                            {% endif %}
-                            <div class="author-icon" style="background-image: url('{{ thumb }}');"></div>
+                            <div class="author-icon" style="background-color: #ddd;"></div>
                             <div>
                                 <div class="video-title">{{ result['title'] }}</div>
                                 <div class="video-meta">
                                     <strong>{{ result["author"] }}</strong><br>
-                                    {{ result["viewCountText"] or result["view_count_text"] }} • {{ result["publishedText"] or result["published"] }}
+                                    {{ result["viewCountText"] or result["view_count_text"] or "" }} • {{ result["publishedText"] or result["published"] or "" }}
                                 </div>
                             </div>
                         </div>
                     </a>
 
-                    {% elif result["type"] == "channel" %}
+                    {# --- チャンネルタイプ --- #}
+                    {% elif result["type"] == "channel" or result["authorId"] %}
                     <a href="/channel/{{ result['authorId'] or result['id'] }}" class="video-card" style="align-items: center; text-align: center; padding: 20px 0;">
-                        {% set chan_thumb = "" %}
-                        {% if result["authorThumbnails"] %}
-                            {% set chan_thumb = result["authorThumbnails"][-1]["url"] %}
-                        {% endif %}
-                        <img loading="lazy" style="width: 50%; border-radius: 50%; aspect-ratio: 1/1; object-fit: cover;" src="{{ chan_thumb }}">
+                        <img loading="lazy" style="width: 50%; border-radius: 50%; aspect-ratio: 1/1; object-fit: cover; background:#eee;" src="{{ result['authorThumbnails'][-1]['url'] if result['authorThumbnails'] else '/img/logo/th.png' }}">
                         <div class="video-info">
                             <div style="width: 100%;">
                                 <div class="video-title" style="-webkit-line-clamp: 1;">{{ result["author"] }}</div>
-                                <div class="video-meta">チャンネル • {{ result["subCountText"] or result["subscriberCount"] }}</div>
+                                <div class="video-meta">チャンネル</div>
                             </div>
                         </div>
                     </a>
 
-                    {% elif result["type"] == "playlist" %}
+                    {# --- プレイリストタイプ --- #}
+                    {% elif result["type"] == "playlist" or result["playlistId"] %}
                     <a href="/playlist?list={{ result['playlistId'] or result['id'] }}" class="video-card">
                         <div class="thumbnail-box">
-                            <img loading="lazy" class="thumbnail" src="{{ result['playlistThumbnail'] or result['thumbnail'] or (result['videos'][0]['videoId'] if result['videos'] else '') }}">
+                            <img loading="lazy" class="thumbnail" src="{{ result['playlistThumbnail'] or result['thumbnail'] or '' }}">
                             <p class="length-tag">{{ result["videoCount"] or result["count"] }}個の動画</p>
                         </div>
                         <div class="video-info">
@@ -190,6 +186,7 @@
         {% if not results %}
         <div style="text-align: center; margin-top: 100px;">
             <p style="color: #888;">動画が見つかりませんでした。</p>
+            <p style="font-size: 0.8rem; color: #aaa;">(APIレスポンス: {{ results|length }}件)</p>
         </div>
         {% endif %}
 
@@ -199,14 +196,12 @@
     </main>
 
     <script>
-        // アニメーション付き通知表示用
         function showNotify(msg) {
             const alertBox = document.getElementById("custom-alert");
             document.getElementById("alert-text").innerText = msg;
             $(alertBox).fadeIn(300).delay(2000).fadeOut(500);
         }
 
-        // オートコンプリート
         $('#searchbox').autocomplete({
             source: function (request, response) {
                 $.getJSON("/suggest?keyword=" + encodeURIComponent(request.term), function(data) {
