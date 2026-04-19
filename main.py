@@ -336,6 +336,10 @@ async def proxy_thumb(v: str):
 async def thumbnail(v: str):
     return await proxy_thumb(v)
 
+@app.get("/games", response_class=HTMLResponse)
+async def read_games(request: Request):
+    return templates.TemplateResponse("games.html", {"request": request})
+
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run(app, host="0.0.0.0", port=8000)
