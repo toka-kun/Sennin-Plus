@@ -1,0 +1,438 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Tsum Tsum Pro - 5→4 Mode with Coin & Fever FX</title>
+    <style>
+        body { margin: 0; background: #1a1a1a; display: flex; justify-content: center; align-items: center; height: 100vh; overflow: hidden; font-family: 'Helvetica Neue', Arial, sans-serif; }
+        #game-wrapper { position: relative; width: 360px; height: 600px; background: #000; border: 10px solid #333; border-radius: 45px; box-shadow: 0 25px 50px rgba(0,0,0,0.5); }
+        canvas { width: 100%; height: 100%; border-radius: 35px; display: block; touch-action: none; background: linear-gradient(180deg, #fff0f5 0%, #ffe4ed 100%); }
+        
+        .fever-mode canvas { background: linear-gradient(180deg, #2d004d 0%, #1a0033 100%) !important; }
+        .hud { position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; z-index: 5; }
+        #score-display { position: absolute; top: 30px; width: 100%; text-align: center; color: #ff4081; font-size: 36px; font-weight: bold; text-shadow: 2px 2px 0 #fff; }
+        .fever-mode #score-display { color: #fff; text-shadow: 0 0 10px #ff00ff; }
+        #timer-display { position: absolute; top: 80px; left: 50%; transform: translateX(-50%); background: #fff; padding: 2px 20px; border-radius: 15px; border: 2px solid #ff4081; color: #ff4081; font-weight: bold; }
+        
+        /* コイン表示 CSS */
+        #coin-container { position: absolute; top: 20px; right: 20px; display: flex; align-items: center; background: rgba(0,0,0,0.6); padding: 4px 12px; border-radius: 20px; border: 1px solid #ffd700; }
+        #coin-icon { width: 18px; height: 18px; background: linear-gradient(135deg, #ffe066 0%, #f5af19 100%); border-radius: 50%; border: 2px solid #fff; margin-right: 6px; position: relative; box-shadow: 0 0 5px #ffd700; }
+        #coin-icon::after { content: ''; position: absolute; top: 2px; left: 50%; transform: translateX(-50%); width: 2px; height: 10px; background: rgba(255,255,255,0.5); }
+        #coin-display { color: #ffd700; font-weight: bold; font-size: 18px; text-shadow: 1px 1px 2px #000; }
+
+        /* フィーバーゲージのデザイン変更 */
+        #fever-bar-container { position: absolute; bottom: 25px; left: 30px; width: 300px; height: 20px; background: rgba(255,255,255,0.1); border-radius: 20px; border: 3px solid #444; overflow: hidden; box-shadow: inset 0 2px 5px rgba(0,0,0,0.5); }
+        #fever-bar-fill { width: 0%; height: 100%; background: linear-gradient(90deg, #ff00ff, #00ffff, #ff00ff); background-size: 200% 100%; box-shadow: 0 0 15px #00ffff; transition: width 0.1s; animation: fever-glow 2s linear infinite; }
+        @keyframes fever-glow { 0% { background-position: 0% 50%; } 100% { background-position: 200% 50%; } }
+        
+        /* フィーバー文字演出 */
+        #fever-notice { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); color: #fff; font-size: 64px; font-weight: 900; font-style: italic; text-shadow: 0 0 20px #ff00ff, 0 0 40px #ff00ff; display: none; z-index: 20; letter-spacing: 5px; }
+
+        #fan-btn { position: absolute; bottom: 60px; right: 20px; width: 50px; height: 50px; background: #fff; border: 3px solid #ff4081; border-radius: 50%; cursor: pointer; pointer-events: auto; display: flex; justify-content: center; align-items: center; box-shadow: 0 4px 0 #ad1457; z-index: 10; transition: transform 0.1s; }
+        #fan-btn:active { transform: translateY(3px); box-shadow: 0 1px 0 #ad1457; }
+        #fan-btn svg { width: 30px; height: 30px; fill: #ff4081; }
+
+        #pause-btn { position: absolute; top: 20px; left: 20px; width: 40px; height: 40px; background: #fff; border: 2px solid #ff4081; border-radius: 10px; cursor: pointer; pointer-events: auto; display: flex; justify-content: center; align-items: center; z-index: 10; font-weight: bold; color: #ff4081; font-size: 20px; }
+
+        #menu { position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.8); display: flex; flex-direction: column; align-items: center; justify-content: center; z-index: 100; border-radius: 35px; }
+        .btn-play { padding: 15px 60px; font-size: 24px; background: #ff4081; color: white; border: none; border-radius: 40px; cursor: pointer; box-shadow: 0 6px 0 #ad1457; font-weight: bold; margin: 10px; }
+        .btn-play:active { transform: translateY(4px); box-shadow: 0 2px 0 #ad1457; }
+        h1 { color: #ff4081; font-size: 32px; margin-bottom: 20px; text-shadow: 0 0 10px rgba(255,64,129,0.5); text-align: center; }
+    </style>
+</head>
+<body>
+
+<div id="game-wrapper">
+    <div class="hud">
+        <div id="pause-btn">II</div>
+        <div id="coin-container">
+            <div id="coin-icon"></div>
+            <div id="coin-display">0</div>
+        </div>
+        <div id="score-display">0</div>
+        <div id="timer-display">TIME: 60</div>
+        <div id="fever-notice">FEVER</div>
+        <div id="fever-bar-container"><div id="fever-bar-fill"></div></div>
+        <div id="fan-btn">
+            <svg viewBox="0 0 24 24"><path d="M12,12c0-3,2.5-5.5,5.5-5.5S23,9,23,12s-2.5,5.5-5.5,5.5S12,15,12,12z M12,12c0,3-2.5,5.5-5.5,5.5S1,15,1,12s2.5-5.5,5.5-5.5 S12,9,12,12z M12,12c-3,0-5.5-2.5-5.5-5.5S9,1,12,1s5.5,2.5,5.5,5.5S15,12,12,12z M12,12c3,0,5.5,2.5,5.5,5.5S15,23,12,23 s-5.5-2.5-5.5-5.5S9,12,12,12z"/></svg>
+        </div>
+    </div>
+    
+    <canvas id="gameCanvas"></canvas>
+    
+    <div id="menu">
+        <h1 id="title">TSUM TSUM<br><small style="font-size: 16px; color: #eee;">5→4 ITEM ACTIVE</small></h1>
+        <button class="btn-play" id="startBtn">START GAME</button>
+    </div>
+</div>
+
+<script>
+const canvas = document.getElementById('gameCanvas');
+const ctx = canvas.getContext('2d');
+const WIDTH = 360, HEIGHT = 600;
+canvas.width = WIDTH; canvas.height = HEIGHT;
+
+const TSUM_RADIUS = 28;
+const GRAVITY = 0.5;
+const FRICTION = 0.98;
+const WALL_BOUNCE = 0.2;
+
+const ALL_COLORS = [
+    { name: 'pink',   main: '#FF70A6', eye: '#4a001f', cheek: '#ffaccb' },
+    { name: 'blue',   main: '#70D6FF', eye: '#002f5d', cheek: '#b5e8ff' },
+    { name: 'yellow', main: '#FFD670', eye: '#5d4b00', cheek: '#fff0c7' },
+    { name: 'green',  main: '#A0FF70', eye: '#1b5d00', cheek: '#d6ffc2' },
+    { name: 'white',  main: '#E9ECEF', eye: '#263238', cheek: '#ffffff' }
+];
+
+let activeColors = [];
+let tsums = [];
+let bombs = [];
+let particles = [];
+let chain = [];
+let score = 0, coins = 0, timeLeft = 60, feverGauge = 0, combo = 0;
+let isRunning = false, isFever = false, isDragging = false, isPaused = false;
+
+class Tsum {
+    constructor(x, y, typeIndex) {
+        this.x = x; this.y = y;
+        this.vx = (Math.random() - 0.5) * 4;
+        this.vy = 0;
+        this.radius = TSUM_RADIUS;
+        this.typeIndex = typeIndex;
+        this.color = activeColors[typeIndex];
+        this.angle = (Math.random() - 0.5) * 0.5;
+        this.va = 0;
+    }
+
+    update() {
+        this.vy += isFever ? GRAVITY * 1.5 : GRAVITY;
+        this.vx *= FRICTION;
+        this.vy *= FRICTION;
+        this.x += this.vx;
+        this.y += this.vy;
+        this.angle += this.va;
+        this.va *= 0.9;
+
+        if (this.y > HEIGHT - this.radius) {
+            this.y = HEIGHT - this.radius;
+            this.vy *= -WALL_BOUNCE;
+        }
+        if (this.x < this.radius) {
+            this.x = this.radius;
+            this.vx *= -WALL_BOUNCE;
+        } else if (this.x > WIDTH - this.radius) {
+            this.x = WIDTH - this.radius;
+            this.vx *= -WALL_BOUNCE;
+        }
+    }
+
+    draw() {
+        ctx.save();
+        ctx.translate(this.x, this.y);
+        ctx.rotate(this.angle);
+
+        ctx.beginPath();
+        ctx.arc(0, 0, this.radius, 0, Math.PI * 2);
+        ctx.fillStyle = this.color.main;
+        ctx.fill();
+
+        if (chain.includes(this)) {
+            ctx.strokeStyle = "#fff";
+            ctx.lineWidth = 6;
+            ctx.stroke();
+            ctx.scale(1.1, 1.1);
+        }
+
+        ctx.fillStyle = this.color.eye;
+        ctx.beginPath(); ctx.arc(-10, -3, 3.5, 0, Math.PI * 2); ctx.fill();
+        ctx.beginPath(); ctx.arc(10, -3, 3.5, 0, Math.PI * 2); ctx.fill();
+        ctx.fillStyle = this.color.cheek;
+        ctx.beginPath(); ctx.arc(-15, 5, 5, 0, Math.PI * 2); ctx.fill();
+        ctx.beginPath(); ctx.arc(15, 5, 5, 0, Math.PI * 2); ctx.fill();
+        
+        ctx.restore();
+    }
+}
+
+class Bomb {
+    constructor(x, y) { this.x = x; this.y = y; this.r = 35; this.t = 0; }
+    draw() {
+        this.t += 0.1;
+        let s = 1 + Math.sin(this.t) * 0.05;
+        ctx.save();
+        ctx.translate(this.x, this.y);
+        ctx.scale(s, s);
+        ctx.beginPath(); ctx.arc(0, 0, this.r, 0, Math.PI*2);
+        ctx.fillStyle = "rgba(255, 255, 255, 0.9)";
+        ctx.shadowBlur = 15; ctx.shadowColor = "#ff4081";
+        ctx.fill();
+        ctx.strokeStyle = "#ff4081"; ctx.lineWidth = 4; ctx.stroke();
+        ctx.fillStyle = "#ff4081"; ctx.font = "bold 16px Arial"; ctx.textAlign="center";
+        ctx.fillText("BOMB", 0, 6);
+        ctx.restore();
+    }
+}
+
+function resolvePhysics() {
+    const steps = 8; 
+    for (let s = 0; s < steps; s++) {
+        for (let i = 0; i < tsums.length; i++) {
+            let a = tsums[i];
+            for (let j = i + 1; j < tsums.length; j++) {
+                let b = tsums[j];
+                let dx = b.x - a.x;
+                let dy = b.y - a.y;
+                let distance = Math.sqrt(dx * dx + dy * dy);
+                let minDistance = a.radius + b.radius;
+
+                if (distance < minDistance) {
+                    let overlap = minDistance - distance;
+                    let nx = dx / (distance || 1);
+                    let ny = dy / (distance || 1);
+                    
+                    let moveX = nx * overlap * 0.5;
+                    let moveY = ny * overlap * 0.5;
+
+                    a.x -= moveX;
+                    a.y -= moveY;
+                    b.x += moveX;
+                    b.y += moveY;
+
+                    let rvx = b.vx - a.vx;
+                    let rvy = b.vy - a.vy;
+                    let velAlongNormal = rvx * nx + rvy * ny;
+
+                    if (velAlongNormal < 0) {
+                        let j_force = -(1 + 0.1) * velAlongNormal;
+                        j_force /= 2;
+                        let impulseX = j_force * nx;
+                        let impulseY = j_force * ny;
+                        a.vx -= impulseX;
+                        a.vy -= impulseY;
+                        b.vx += impulseX;
+                        b.vy += impulseY;
+                        a.va -= impulseX * 0.01;
+                        b.va += impulseX * 0.01;
+                    }
+                }
+            }
+        }
+    }
+}
+
+function spawnTsum() {
+    if (tsums.length < 48 && isRunning && !isPaused) {
+        let typeIndex = Math.floor(Math.random() * activeColors.length);
+        let x = Math.random() * (WIDTH - TSUM_RADIUS * 2) + TSUM_RADIUS;
+        tsums.push(new Tsum(x, -50, typeIndex));
+    }
+}
+
+function getInputPos(e) {
+    let rect = canvas.getBoundingClientRect();
+    let cx = (e.touches && e.touches[0]) ? e.touches[0].clientX : e.clientX;
+    let cy = (e.touches && e.touches[0]) ? e.touches[0].clientY : e.clientY;
+    return {
+        x: (cx - rect.left) * (WIDTH / rect.width),
+        y: (cy - rect.top) * (HEIGHT / rect.height)
+    };
+}
+
+canvas.addEventListener('mousedown', startChain);
+canvas.addEventListener('touchstart', startChain);
+canvas.addEventListener('mousemove', continueChain);
+canvas.addEventListener('touchmove', continueChain);
+window.addEventListener('mouseup', endChain);
+window.addEventListener('touchend', endChain);
+
+function startChain(e) {
+    if (!isRunning || isPaused) return;
+    let pos = getInputPos(e);
+
+    for(let i=0; i<bombs.length; i++) {
+        if(Math.hypot(bombs[i].x - pos.x, bombs[i].y - pos.y) < bombs[i].r * 1.5) {
+            explodeBomb(i); return;
+        }
+    }
+
+    tsums.forEach(t => {
+        if (Math.hypot(t.x - pos.x, t.y - pos.y) < t.radius * 1.3) {
+            isDragging = true;
+            chain = [t];
+        }
+    });
+}
+
+function continueChain(e) {
+    if (!isDragging || isPaused) return;
+    let pos = getInputPos(e);
+    let last = chain[chain.length - 1];
+
+    tsums.forEach(t => {
+        let d = Math.hypot(t.x - pos.x, t.y - pos.y);
+        let distToLast = Math.hypot(t.x - last.x, t.y - last.y);
+        if (d < t.radius * 1.5 && t.typeIndex === last.typeIndex && !chain.includes(t) && distToLast < t.radius * 3) {
+            chain.push(t);
+        }
+    });
+}
+
+function endChain() {
+    if (chain.length >= 3) {
+        processClear(chain);
+    }
+    chain = [];
+    isDragging = false;
+}
+
+function processClear(list) {
+    combo++;
+    let mult = isFever ? 3 : 1;
+    
+    score += Math.floor(list.length * 100 * (1 + combo * 0.1) * mult);
+    coins += list.length * 5;
+    
+    // フィーバー中でない場合のみゲージを増やす
+    if (!isFever) {
+        feverGauge = Math.min(100, feverGauge + list.length * 2.5);
+    }
+    
+    document.getElementById('score-display').innerText = score.toLocaleString();
+    document.getElementById('coin-display').innerText = coins.toLocaleString();
+    
+    if (list.length >= 7) {
+        let last = list[list.length - 1];
+        bombs.push(new Bomb(last.x, last.y));
+    }
+
+    list.forEach(t => {
+        for(let i=0; i<5; i++) {
+            particles.push({
+                x: t.x, y: t.y, 
+                vx: (Math.random()-0.5)*10, vy: (Math.random()-0.5)*10, 
+                life: 1.0, color: t.color.main
+            });
+        }
+        tsums = tsums.filter(item => item !== t);
+    });
+}
+
+function explodeBomb(idx) {
+    let b = bombs[idx];
+    let hits = tsums.filter(t => Math.hypot(t.x - b.x, t.y - b.y) < 120);
+    processClear(hits);
+    bombs.splice(idx, 1);
+}
+
+document.getElementById('fan-btn').addEventListener('click', () => {
+    if (!isRunning || isPaused) return;
+    tsums.forEach(t => {
+        t.vy = -Math.random() * 15 - 5; 
+        t.vx = (Math.random() - 0.5) * 20; 
+        t.va = (Math.random() - 0.5) * 0.5; 
+    });
+});
+
+document.getElementById('pause-btn').addEventListener('click', () => {
+    if (!isRunning || timeLeft <= 0) return;
+    isPaused = true;
+    document.getElementById('menu').style.display = "flex";
+    document.getElementById('title').innerHTML = "PAUSED<br><small style='font-size:16px; color:#eee;'>SCORE: " + score.toLocaleString() + "</small>";
+    document.getElementById('startBtn').innerText = "RESUME";
+});
+
+function mainLoop() {
+    if (!isRunning || isPaused) return;
+    ctx.clearRect(0, 0, WIDTH, HEIGHT);
+
+    spawnTsum();
+    resolvePhysics();
+
+    if (chain.length > 1) {
+        ctx.beginPath();
+        ctx.lineWidth = 12;
+        ctx.strokeStyle = "rgba(255,255,255,0.5)";
+        ctx.lineJoin = "round";
+        ctx.moveTo(chain[0].x, chain[0].y);
+        chain.forEach(t => ctx.lineTo(t.x, t.y));
+        ctx.stroke();
+    }
+
+    tsums.forEach(t => { t.update(); t.draw(); });
+    bombs.forEach(b => b.draw());
+
+    particles.forEach((p, i) => {
+        p.x += p.vx; p.y += p.vy; p.life -= 0.03;
+        ctx.globalAlpha = p.life;
+        ctx.fillStyle = p.color;
+        ctx.beginPath(); ctx.arc(p.x, p.y, 4, 0, 7); ctx.fill();
+        if(p.life <= 0) particles.splice(i, 1);
+    });
+    ctx.globalAlpha = 1;
+
+    // フィーバーゲージの更新
+    document.getElementById('fever-bar-fill').style.width = feverGauge + "%";
+    
+    // フィーバー突入判定
+    if (feverGauge >= 100 && !isFever) {
+        isFever = true;
+        document.body.classList.add('fever-mode');
+        
+        // FEVER表示を1秒出す
+        const notice = document.getElementById('fever-notice');
+        notice.style.display = "block";
+        setTimeout(() => { notice.style.display = "none"; }, 1000);
+
+        // 10秒後にフィーバー終了
+        setTimeout(() => {
+            if (!isPaused) {
+                isFever = false; 
+                feverGauge = 0;
+                document.body.classList.remove('fever-mode');
+            }
+        }, 10000);
+    }
+
+    requestAnimationFrame(mainLoop);
+}
+
+setInterval(() => {
+    if (isRunning && !isPaused && timeLeft > 0) {
+        timeLeft--;
+        document.getElementById('timer-display').innerText = "TIME: " + timeLeft;
+        if (timeLeft <= 0) {
+            isRunning = false;
+            document.getElementById('menu').style.display = "flex";
+            document.getElementById('title').innerHTML = "SCORE: " + score.toLocaleString() + "<br><small style='font-size:14px; color:#aaa;'>COINS: " + coins.toLocaleString() + "</small>";
+            document.getElementById('startBtn').innerText = "RETRY";
+        }
+    }
+}, 1000);
+
+document.getElementById('startBtn').addEventListener('click', () => {
+    if (isPaused) {
+        isPaused = false;
+        document.getElementById('menu').style.display = "none";
+        mainLoop();
+        return;
+    }
+
+    let tempColors = [...ALL_COLORS];
+    tempColors.splice(Math.floor(Math.random() * tempColors.length), 1);
+    activeColors = tempColors;
+
+    tsums = []; bombs = []; particles = []; chain = [];
+    score = 0; coins = 0; timeLeft = 60; feverGauge = 0; combo = 0;
+    document.getElementById('score-display').innerText = "0";
+    document.getElementById('coin-display').innerText = "0";
+    document.getElementById('menu').style.display = "none";
+    document.getElementById('fever-notice').style.display = "none";
+    isRunning = true;
+    isPaused = false;
+    mainLoop();
+});
+</script>
+</body>
+</html>
