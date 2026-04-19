@@ -107,38 +107,17 @@ def request_api(path, api_urls):
 def formatSearchData(data_dict):
     failed = "不明"
     try:
-        if data_dict["type"] == "video":
+        # 「video」タイプのみを処理し、それ以外はNoneを返す
+        if data_dict.get("type") == "video":
             return {
                 "type": "video",
-                "title": data_dict["title"] if 'title' in data_dict else failed,
-                "id": data_dict["videoId"] if 'videoId' in data_dict else failed,
-                "authorId": data_dict["authorId"] if 'authorId' in data_dict else failed,
-                "author": data_dict["author"] if 'author' in data_dict else failed,
-                "published": data_dict["publishedText"] if 'publishedText' in data_dict else failed,
-                "length": str(datetime.timedelta(seconds=data_dict["lengthSeconds"])) if 'lengthSeconds' in data_dict else "0:00",
+                "title": data_dict.get("title", failed),
+                "id": data_dict.get("videoId", failed),
+                "authorId": data_dict.get("authorId", failed),
+                "author": data_dict.get("author", failed),
+                "published": data_dict.get("publishedText", failed),
+                "length": str(datetime.timedelta(seconds=data_dict.get("lengthSeconds", 0))) if 'lengthSeconds' in data_dict else "0:00",
                 "view_count_text": data_dict.get("viewCountText", "0回視聴")
-            }
-        
-        elif data_dict["type"] == "playlist":
-            return {
-                "type": "playlist",
-                "title": data_dict["title"] if 'title' in data_dict else failed,
-                "id": data_dict['playlistId'] if 'playlistId' in data_dict else failed,
-                "thumbnail": data_dict["playlistThumbnail"] if 'playlistThumbnail' in data_dict else "",
-                "count": data_dict["videoCount"] if 'videoCount' in data_dict else 0,
-                "author": data_dict.get("author", failed)
-            }
-        
-        elif "authorThumbnails" in data_dict and data_dict["authorThumbnails"]:
-            thumbnail_url = data_dict["authorThumbnails"][-1]["url"]
-            if not thumbnail_url.startswith("https"):
-                thumbnail_url = "https:" + thumbnail_url
-            
-            return {
-                "type": "channel",
-                "author": data_dict["author"] if 'author' in data_dict else failed,
-                "id": data_dict["authorId"] if 'authorId' in data_dict else failed,
-                "thumbnail": thumbnail_url
             }
     except:
         pass
@@ -232,7 +211,7 @@ def search(q: str, request: Request, page: int = 1, yuki: Union[str, None] = Coo
     raw = request_api(f"/search?q={urllib.parse.quote(q)}&page={page}&hl=jp", invidious_api.search)
     datas_dict = json.loads(raw)
     
-    # 修正箇所: 整形関数を通してリストを作成
+    # 整形関数を通して「動画のみ」のリストを作成
     if isinstance(datas_dict, list):
         results = [formatSearchData(d) for d in datas_dict if formatSearchData(d) is not None]
     else:
@@ -260,4 +239,3 @@ def view_bbs(request: Request):
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run(app, host="0.0.0.0", port=8000)
-
