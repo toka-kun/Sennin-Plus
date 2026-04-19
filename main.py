@@ -340,6 +340,22 @@ async def thumbnail(v: str):
 async def read_games(request: Request):
     return templates.TemplateResponse("games.html", {"request": request})
 
+@app.get("/block.html", response_class=HTMLResponse)
+async def read_block(request: Request):
+    return templates.TemplateResponse("block.html", {"request": request})
+
+@app.get("/tumu.html", response_class=HTMLResponse)
+async def read_tumu(request: Request):
+    return templates.TemplateResponse("tumu.html", {"request": request})
+
+@app.get("/2048.html", response_class=HTMLResponse)
+async def read_2048(request: Request):
+    return templates.TemplateResponse("2048.html", {"request": request})
+
+@app.get("/status", response_class=HTMLResponse)
+async def read_status(request: Request):
+    return templates.TemplateResponse("status.html", {"request": request})
+
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run(app, host="0.0.0.0", port=8000)
