@@ -261,8 +261,8 @@
             {% endif %}
         {% endfor %}
 
-        {# --- Shorts セクション --- #}
-        {% if shorts_list %}
+        {# --- Shorts セクション (type == 'short' の時のみ表示) --- #}
+        {% if type == 'short' and shorts_list %}
         <div class="section-header">
             <i class="fas fa-bolt"></i> Shorts
         </div>
@@ -289,9 +289,8 @@
         </div>
         {% endif %}
 
-        {# --- 通常動画・チャンネル・プレイリスト セクション --- #}
-        {% if normal_list %}
-        {% if shorts_list %}<hr style="border: 0; border-top: 1px solid var(--border-color); margin: 40px 0;">{% endif %}
+        {# --- 通常動画・チャンネル・プレイリスト セクション (Short以外の時に表示) --- #}
+        {% if type != 'short' and normal_list %}
         <div class="video-grid">
             {% for result in normal_list %}
                 <div class="grid-item">
