@@ -61,7 +61,7 @@ class InvidiousAPI:
             self.all = json.loads(res.text)
         except:
             # フォールバック（取得失敗時）
-            self.all = {"video": ["https://inv.tux.pizza/"], "search": ["https://inv.tux.pizza/"], "channel": ["https://inv.tux.pizza/"], "playlist": ["https://inv.tux.pizza/"], "comments": ["https://inv.tux.pizza/"]}
+            self.all = {"video": ["https://invidious.f5.si/"], "search": ["https://invidious.f5.si"], "channel": ["https://inv.tux.pizza/"], "playlist": ["https://invidious.f5.si/"], "comments": ["https://invidious.f5.si/"]}
         
         self.video = self.all.get('video', [])
         self.playlist = self.all.get('playlist', [])
