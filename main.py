@@ -182,6 +182,7 @@ async def watch(request: Request, v: str = Query(...)):
             "videourls": video_urls,
             "streamUrls": stream_urls,
             "author": video_data.get("author"),
+            "author_id": video_data.get("authorId"),
             "author_icon": video_data.get("authorThumbnails", [{"url": ""}])[-1]["url"],
             "subscribers_count": video_data.get("subCountText", "非公開"),
             "view_count": video_data.get("viewCount", 0),
