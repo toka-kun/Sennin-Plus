@@ -194,6 +194,21 @@
         .video-title { font-weight: 700; font-size: 0.95rem; line-height: 1.4; margin-bottom: 6px; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
         .video-meta { font-size: 0.8rem; color: #888; }
 
+        /* セクション見出し */
+        .section-header {
+            display: flex; align-items: center; gap: 10px;
+            margin: 40px 0 20px; font-size: 1.2rem; font-weight: bold;
+        }
+        .section-header i { color: #ff0000; }
+
+        /* Shorts専用グリッド（縦長を活かすための調整） */
+        .shorts-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+            gap: 15px;
+            margin-bottom: 50px;
+        }
+
         /* 次のページボタン強化 */
         .pagination-container { text-align: center; margin: 50px 0; padding: 20px; }
         .next-btn {
@@ -235,8 +250,50 @@
             <div class="filter-chip {% if type == 'short' %}active{% endif %}" onclick="applyFilter('short')">Short</div>
         </div>
 
+        {# データをShortsとその他に分類 #}
+        {% set shorts_list = [] %}
+        {% set normal_list = [] %}
+        {% for result in results %}
+            {% if result['type'] == 'video' and result['lengthSeconds'] and result['lengthSeconds'] <= 60 %}
+                {% do shorts_list.append(result) %}
+            {% else %}
+                {% do normal_list.append(result) %}
+            {% endif %}
+        {% endfor %}
+
+        {# --- Shorts セクション --- #}
+        {% if shorts_list %}
+        <div class="section-header">
+            <i class="fas fa-bolt"></i> Shorts
+        </div>
+        <div class="shorts-grid">
+            {% for result in shorts_list %}
+            <a href="/shorts/{{ result['videoId'] }}" class="video-card is-short">
+                <div class="thumbnail-box">
+                    <img class="thumbnail" loading="lazy" src="/proxy/thumb?v={{ result['videoId'] }}" onerror="this.src='{{ result['videoThumbnails'][0]['url'] if result['videoThumbnails'] else 'https://i.ytimg.com/vi/' + (result['videoId'] or '') + '/mqdefault.jpg' }}';">
+                    <div class="short-badge"><i class="fas fa-bolt"></i> SHORTS</div>
+                </div>
+                <div class="video-info">
+                    <div class="author-icon">
+                        <img src="{{ result['authorThumbnails'][-1]['url'] if result['authorThumbnails'] else '' }}" onerror="this.src='/proxy/thumb?v=default';">
+                    </div>
+                    <div>
+                        <div class="video-title">{{ result['title'] }}</div>
+                        <div class="video-meta">
+                            {{ result["viewCountText"] or result["viewCount"] }}
+                        </div>
+                    </div>
+                </div>
+            </a>
+            {% endfor %}
+        </div>
+        {% endif %}
+
+        {# --- 通常動画・チャンネル・プレイリスト セクション --- #}
+        {% if normal_list %}
+        {% if shorts_list %}<hr style="border: 0; border-top: 1px solid var(--border-color); margin: 40px 0;">{% endif %}
         <div class="video-grid">
-            {% for result in results %}
+            {% for result in normal_list %}
                 <div class="grid-item">
                     {% if result['type'] == 'channel' %}
                     <a href="/channel/{{ result['authorId'] }}" class="video-card" style="align-items: center; padding: 20px; text-align: center;">
@@ -247,12 +304,9 @@
                         <div class="video-meta">{{ result['subCountText'] }} • {{ result['videoCount'] }} 本の動画</div>
                     </a>
                     {% else %}
-                    {# Short判別ロジック：60秒以内かつビデオタイプ #}
-                    {% set is_short = result['type'] == 'video' and result['lengthSeconds'] and result['lengthSeconds'] <= 60 %}
-                    <a href="{% if is_short %}/shorts/{{ result['videoId'] }}{% elif result['type'] == 'playlist' %}/playlist?list={{ result['playlistId'] }}{% else %}/watch?v={{ result['videoId'] }}{% endif %}" class="video-card {% if is_short %}is-short{% endif %}">
+                    <a href="{% if result['type'] == 'playlist' %}/playlist?list={{ result['playlistId'] }}{% else %}/watch?v={{ result['videoId'] }}{% endif %}" class="video-card">
                         <div class="thumbnail-box">
                             <img class="thumbnail" loading="lazy" src="/proxy/thumb?v={{ result['videoId'] or result['playlistId'] }}" onerror="this.src='{{ result['videoThumbnails'][0]['url'] if result['videoThumbnails'] else 'https://i.ytimg.com/vi/' + (result['videoId'] or '') + '/mqdefault.jpg' }}';">
-                            {% if is_short %}<div class="short-badge"><i class="fas fa-bolt"></i> SHORTS</div>{% endif %}
                             <p class="length-tag">
                                 {% if result["lengthSeconds"] %}
                                     {{ "%02d:%02d" | format(result["lengthSeconds"] // 60, result["lengthSeconds"] % 60) }}
@@ -280,6 +334,7 @@
                 </div>
             {% endfor %}
         </div>
+        {% endif %}
 
         {% if not results %}
         <div style="text-align: center; margin-top: 100px;">
