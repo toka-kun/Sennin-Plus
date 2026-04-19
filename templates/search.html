@@ -136,12 +136,11 @@
     <main class="container">
         <div class="video-grid">
             {% for result in results %}
+                {# Python側で既に動画のみに絞り込まれています #}
                 <div class="grid-item">
-                    {# --- 動画タイプ --- #}
-                    {% if result["type"] == "video" %}
                     <a href="/watch?v={{ result['id'] }}" class="video-card">
                         <div class="thumbnail-box">
-                            <img class="thumbnail" loading="lazy" src="/thumbnail?v={{ result['id'] }}" onerror="this.src='https://img.youtube.com/vi/{{ result['id'] }}/mqdefault.jpg';">
+                            <img class="thumbnail" loading="lazy" src="/thumbnail?v={{ result['id'] }}" onerror="this.src='http://googleusercontent.com/youtube.com/vi/{{ result['id'] }}/mqdefault.jpg';">
                             <p class="length-tag">{{ result["length"] }}</p>
                         </div>
                         <div class="video-info">
@@ -155,34 +154,6 @@
                             </div>
                         </div>
                     </a>
-
-                    {# --- チャンネルタイプ --- #}
-                    {% elif result["type"] == "channel" %}
-                    <a href="/channel/{{ result['id'] }}" class="video-card" style="align-items: center; text-align: center; padding: 20px 0;">
-                        <img loading="lazy" style="width: 50%; border-radius: 50%; aspect-ratio: 1/1; object-fit: cover; background:#eee;" src="{{ result['thumbnail'] }}">
-                        <div class="video-info">
-                            <div style="width: 100%;">
-                                <div class="video-title" style="-webkit-line-clamp: 1;">{{ result["author"] }}</div>
-                                <div class="video-meta">チャンネル</div>
-                            </div>
-                        </div>
-                    </a>
-
-                    {# --- プレイリストタイプ --- #}
-                    {% elif result["type"] == "playlist" %}
-                    <a href="/playlist?list={{ result['id'] }}" class="video-card">
-                        <div class="thumbnail-box">
-                            <img loading="lazy" class="thumbnail" src="{{ result['thumbnail'] }}">
-                            <p class="length-tag">{{ result["count"] }}個の動画</p>
-                        </div>
-                        <div class="video-info">
-                            <div style="width: 100%;">
-                                <div class="video-title">{{ result["title"] }}</div>
-                                <div class="video-meta">プレイリスト • {{ result["author"] }}</div>
-                            </div>
-                        </div>
-                    </a>
-                    {% endif %}
                 </div>
             {% endfor %}
         </div>
