@@ -12,6 +12,7 @@
         /* --- 共通スタイル継承 --- */
         :root {
             --primary-color: #007bff;
+            --error-color: #ff4d4f;
             --bg-light: #fdfdfd;
             --text-dark: #333333;
             --gray-logo: #555555;
@@ -84,6 +85,10 @@
             animation: slideIn 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275);
         }
 
+        #custom-alert.error {
+            border-left-color: var(--error-color);
+        }
+
         @keyframes slideIn {
             from { opacity: 0; transform: translateX(100px); }
             to { opacity: 1; transform: translateX(0); }
@@ -123,7 +128,7 @@
 
     <div id="custom-alert">
         <div style="display: flex; align-items: center; gap: 10px;">
-            <i class="fas fa-info-circle" style="color: var(--primary-color);"></i>
+            <i id="alert-icon" class="fas fa-info-circle" style="color: var(--primary-color);"></i>
             <span id="alert-text"></span>
         </div>
     </div>
@@ -186,8 +191,13 @@
         {% if not results %}
         <div style="text-align: center; margin-top: 100px;">
             <p style="color: #888;">動画が見つかりませんでした。</p>
-            <p style="font-size: 0.8rem; color: #aaa;">(APIレスポンス: {{ results|length }}件)</p>
+            <p style="font-size: 0.8rem; color: #aaa;">(APIレスポンスが空、またはインスタンスエラーです)</p>
         </div>
+        <script>
+            window.onload = function() {
+                showNotify("データの取得に失敗しました。インスタンスを切り替えるか、再試行してください。", true);
+            };
+        </script>
         {% endif %}
 
         <div style="text-align:right; margin-top: 40px; padding: 20px;">
@@ -196,10 +206,24 @@
     </main>
 
     <script>
-        function showNotify(msg) {
+        function showNotify(msg, isError = false) {
             const alertBox = document.getElementById("custom-alert");
-            document.getElementById("alert-text").innerText = msg;
-            $(alertBox).fadeIn(300).delay(2000).fadeOut(500);
+            const alertIcon = document.getElementById("alert-icon");
+            const alertText = document.getElementById("alert-text");
+
+            alertText.innerText = msg;
+
+            if (isError) {
+                alertBox.classList.add("error");
+                alertIcon.className = "fas fa-exclamation-triangle";
+                alertIcon.style.color = "var(--error-color)";
+            } else {
+                alertBox.classList.remove("error");
+                alertIcon.className = "fas fa-info-circle";
+                alertIcon.style.color = "var(--primary-color)";
+            }
+
+            $(alertBox).fadeIn(300).delay(3000).fadeOut(500);
         }
 
         $('#searchbox').autocomplete({
