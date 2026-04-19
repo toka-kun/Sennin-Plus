@@ -138,12 +138,11 @@
             {% for result in results %}
                 <div class="grid-item">
                     {# --- 動画タイプ --- #}
-                    {% if result["type"] == "video" or result["videoId"] or (result["id"] and result["type"] != "channel" and result["type"] != "playlist") %}
-                    {% set vid = result["videoId"] or result["id"] %}
-                    <a href="/watch?v={{ vid }}" class="video-card">
+                    {% if result["type"] == "video" %}
+                    <a href="/watch?v={{ result['id'] }}" class="video-card">
                         <div class="thumbnail-box">
-                            <img class="thumbnail" loading="lazy" src="/thumbnail?v={{ vid }}" onerror="this.src='https://img.youtube.com/vi/{{ vid }}/mqdefault.jpg';">
-                            <p class="length-tag">{{ result["lengthText"] or result["length"] or result["length_text"] or "" }}</p>
+                            <img class="thumbnail" loading="lazy" src="/thumbnail?v={{ result['id'] }}" onerror="this.src='https://img.youtube.com/vi/{{ result['id'] }}/mqdefault.jpg';">
+                            <p class="length-tag">{{ result["length"] }}</p>
                         </div>
                         <div class="video-info">
                             <div class="author-icon" style="background-color: #ddd;"></div>
@@ -151,16 +150,16 @@
                                 <div class="video-title">{{ result['title'] }}</div>
                                 <div class="video-meta">
                                     <strong>{{ result["author"] }}</strong><br>
-                                    {{ result["viewCountText"] or result["view_count_text"] or "" }} • {{ result["publishedText"] or result["published"] or "" }}
+                                    {{ result["view_count_text"] }} • {{ result["published"] }}
                                 </div>
                             </div>
                         </div>
                     </a>
 
                     {# --- チャンネルタイプ --- #}
-                    {% elif result["type"] == "channel" or result["authorId"] %}
-                    <a href="/channel/{{ result['authorId'] or result['id'] }}" class="video-card" style="align-items: center; text-align: center; padding: 20px 0;">
-                        <img loading="lazy" style="width: 50%; border-radius: 50%; aspect-ratio: 1/1; object-fit: cover; background:#eee;" src="{{ result['authorThumbnails'][-1]['url'] if result['authorThumbnails'] else '/img/logo/th.png' }}">
+                    {% elif result["type"] == "channel" %}
+                    <a href="/channel/{{ result['id'] }}" class="video-card" style="align-items: center; text-align: center; padding: 20px 0;">
+                        <img loading="lazy" style="width: 50%; border-radius: 50%; aspect-ratio: 1/1; object-fit: cover; background:#eee;" src="{{ result['thumbnail'] }}">
                         <div class="video-info">
                             <div style="width: 100%;">
                                 <div class="video-title" style="-webkit-line-clamp: 1;">{{ result["author"] }}</div>
@@ -170,11 +169,11 @@
                     </a>
 
                     {# --- プレイリストタイプ --- #}
-                    {% elif result["type"] == "playlist" or result["playlistId"] %}
-                    <a href="/playlist?list={{ result['playlistId'] or result['id'] }}" class="video-card">
+                    {% elif result["type"] == "playlist" %}
+                    <a href="/playlist?list={{ result['id'] }}" class="video-card">
                         <div class="thumbnail-box">
-                            <img loading="lazy" class="thumbnail" src="{{ result['playlistThumbnail'] or result['thumbnail'] or '' }}">
-                            <p class="length-tag">{{ result["videoCount"] or result["count"] }}個の動画</p>
+                            <img loading="lazy" class="thumbnail" src="{{ result['thumbnail'] }}">
+                            <p class="length-tag">{{ result["count"] }}個の動画</p>
                         </div>
                         <div class="video-info">
                             <div style="width: 100%;">
