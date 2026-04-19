@@ -97,6 +97,7 @@
             padding: 0 20px;
             display: flex;
             gap: 20px;
+            overflow-x: auto;
         }
 
         .nav-item {
@@ -106,6 +107,7 @@
             border-bottom: 3px solid transparent;
             text-decoration: none;
             color: inherit;
+            white-space: nowrap;
         }
 
         .nav-item.active {
@@ -113,7 +115,7 @@
             color: var(--primary-color);
         }
 
-        /* 動画グリッド */
+        /* グリッドレイアウト */
         .container {
             max-width: 1200px;
             margin: 0 auto;
@@ -121,6 +123,11 @@
             display: grid;
             grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
             gap: 20px;
+        }
+
+        /* Shorts用グリッド */
+        .shorts-grid {
+            grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
         }
 
         .video-card {
@@ -140,6 +147,8 @@
             overflow: hidden;
         }
 
+        .shorts-box { aspect-ratio: 9/16; }
+
         .thumb { width: 100%; height: 100%; object-fit: cover; }
 
         .v-title {
@@ -153,6 +162,30 @@
         }
 
         .v-meta { font-size: 0.85rem; color: #888; margin-top: 4px; }
+
+        /* コミュニティ投稿 */
+        .comm-container {
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 30px 20px;
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+        }
+
+        .comm-post {
+            background: var(--card-bg);
+            border: 1px solid var(--border-color);
+            border-radius: 12px;
+            padding: 20px;
+        }
+
+        .comm-header { display: flex; align-items: center; gap: 12px; margin-bottom: 15px; }
+        .comm-icon { width: 40px; height: 40px; border-radius: 50%; }
+        .comm-author { font-weight: bold; }
+        .comm-date { font-size: 0.85rem; color: #888; }
+        .comm-content { line-height: 1.6; word-break: break-all; }
+        .comm-footer { margin-top: 15px; color: #888; font-size: 0.9rem; }
     </style>
 </head>
 <body>
@@ -175,11 +208,20 @@
     </div>
 
     <nav class="channel-nav">
-        <a href="/channel/{{ ucid }}?sort_by=newest" class="nav-item {{ 'active' if sort_by == 'newest' else '' }}">最新</a>
-        <a href="/channel/{{ ucid }}?sort_by=oldest" class="nav-item {{ 'active' if sort_by == 'oldest' else '' }}">古い順</a>
-        <a href="/channel/{{ ucid }}?sort_by=popular" class="nav-item {{ 'active' if sort_by == 'popular' else '' }}">人気</a>
+        <a href="/channel/{{ ucid }}?tab=videos" class="nav-item {{ 'active' if tab == 'videos' else '' }}">動画</a>
+        <a href="/channel/{{ ucid }}?tab=shorts" class="nav-item {{ 'active' if tab == 'shorts' else '' }}">Shorts</a>
+        <a href="/channel/{{ ucid }}?tab=playlists" class="nav-item {{ 'active' if tab == 'playlists' else '' }}">再生リスト</a>
+        <a href="/channel/{{ ucid }}?tab=community" class="nav-item {{ 'active' if tab == 'community' else '' }}">コミュニティ</a>
     </nav>
 
+    {% if tab == "videos" %}
+    <div style="max-width: 1200px; margin: 20px auto 0; padding: 0 20px;">
+        <select onchange="location.href='/channel/{{ ucid }}?tab=videos&sort_by=' + this.value" style="padding: 5px 10px; border-radius: 5px; background: var(--card-bg); color: var(--text-dark); border: 1px solid var(--border-color);">
+            <option value="newest" {{ 'selected' if sort_by == 'newest' else '' }}>最新順</option>
+            <option value="oldest" {{ 'selected' if sort_by == 'oldest' else '' }}>古い順</option>
+            <option value="popular" {{ 'selected' if sort_by == 'popular' else '' }}>人気順</option>
+        </select>
+    </div>
     <main class="container">
         {% for video in videos %}
         <a href="/watch?v={{ video.videoId }}" class="video-card">
@@ -187,11 +229,58 @@
                 <img class="thumb" src="/proxy/thumb?v={{ video.videoId }}" loading="lazy">
             </div>
             <div class="v-title">{{ video.title }}</div>
-            <div class="v-meta">
-                {{ video.viewCountText }} • {{ video.publishedText }}
-            </div>
+            <div class="v-meta">{{ video.viewCountText }} • {{ video.publishedText }}</div>
         </a>
         {% endfor %}
     </main>
+
+    {% elif tab == "shorts" %}
+    <main class="container shorts-grid">
+        {% for short in shorts %}
+        <a href="/shorts/{{ short.videoId }}" class="video-card">
+            <div class="thumb-box shorts-box">
+                <img class="thumb" src="/proxy/thumb?v={{ short.videoId }}" loading="lazy">
+            </div>
+            <div class="v-title">{{ short.title }}</div>
+            <div class="v-meta">{{ short.viewCountText }}</div>
+        </a>
+        {% endfor %}
+    </main>
+
+    {% elif tab == "playlists" %}
+    <main class="container">
+        {% for pl in playlists %}
+        <a href="/playlist?list={{ pl.id }}" class="video-card">
+            <div class="thumb-box">
+                <img class="thumb" src="{{ pl.thumbnail }}" loading="lazy">
+                <div style="position: absolute; right: 0; top: 0; bottom: 0; width: 40%; background: rgba(0,0,0,0.7); display: flex; flex-direction: column; align-items: center; justify-content: center; color: white;">
+                    <i class="fas fa-list"></i>
+                    <span style="font-size: 1.2rem; font-weight: bold;">{{ pl.video_count }}</span>
+                </div>
+            </div>
+            <div class="v-title">{{ pl.title }}</div>
+        </a>
+        {% endfor %}
+    </main>
+
+    {% elif tab == "community" %}
+    <main class="comm-container">
+        {% for post in community %}
+        <div class="comm-post">
+            <div class="comm-header">
+                <img src="{{ post.author_icon }}" class="comm-icon">
+                <div>
+                    <div class="comm-author">{{ post.author }}</div>
+                    <div class="comm-date">{{ post.published_text }}</div>
+                </div>
+            </div>
+            <div class="comm-content">{{ post.content|safe }}</div>
+            <div class="comm-footer">
+                <i class="far fa-thumbs-up"></i> {{ post.likes }}
+            </div>
+        </div>
+        {% endfor %}
+    </main>
+    {% endif %}
 </body>
 </html>
