@@ -24,7 +24,8 @@ class SimpleCache:
         def decorator(func):
             @wraps(func)
             def wrapper(*args, **kwargs):
-                # 修正: unhashable type (dict等) を回避するため str() で文字列化
+                # 修正ポイント: args と kwargs を str() で文字列化することで
+                # unhashable な dict や Request オブジェクトが含まれていてもエラーを回避する
                 key = f"{func.__name__}:{str(args)}:{str(kwargs)}"
                 now = time.time()
                 if key in self.store and (now - self.store[key]['time'] < seconds):
@@ -215,7 +216,6 @@ def watch_video(v: str, request: Request, yuki: Union[str, None] = Cookie(None))
     }
     return templates.TemplateResponse(request=request, name="watch.html", context=context)
 
-# 1枚目のロジックに基づき、HTML側の変数「word」や「page」に完全対応させた検索エンドポイント
 @app.get("/search", response_class=HTMLResponse)
 async def search(
     request: Request, 
