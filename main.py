@@ -11,6 +11,7 @@ app = FastAPI()
 
 # テンプレートの設定
 templates = Jinja2Templates(directory="templates")
+templates.env.add_extension('jinja2.ext.do')
 
 # 使用するInvidiousインスタンスのリスト
 INVIDIOUS_INSTANCES = [
