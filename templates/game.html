@@ -1,0 +1,150 @@
+<!DOCTYPE html>
+<html lang="ja">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+    <meta name="robots" content="noindex,nofollow">
+    <title>Games - 仙人Tube</title>
+    <link rel="icon" href="/img/logo/favicon.ico">
+
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+
+    <style>
+        :root {
+            --primary-color: #007bff;
+            --bg-light: #fdfdfd;
+            --text-dark: #333333;
+            --glass-bg: rgba(255, 255, 255, 0.8);
+        }
+
+        html, body {
+            font-family: 'Noto Sans JP', sans-serif;
+            margin: 0;
+            padding: 0;
+            background-color: var(--bg-light);
+            color: var(--text-dark);
+        }
+
+        #top-bar {
+            position: fixed;
+            top: 0;
+            width: 100%;
+            background-color: var(--glass-bg);
+            backdrop-filter: blur(10px);
+            z-index: 1000;
+            padding: 12px 25px;
+            display: flex;
+            align-items: center;
+            box-shadow: 0 2px 15px rgba(0, 0, 0, 0.05);
+            box-sizing: border-box;
+        }
+
+        #top-bar a {
+            text-decoration: none;
+            color: var(--text-dark);
+            font-weight: 700;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        #contents {
+            padding: 100px 20px 40px;
+            max-width: 1000px;
+            margin: 0 auto;
+            text-align: center;
+        }
+
+        h2 {
+            font-size: 2em;
+            margin-bottom: 30px;
+            color: var(--primary-color);
+        }
+
+        .game-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+            gap: 20px;
+        }
+
+        .game-card {
+            background: white;
+            border-radius: 15px;
+            padding: 20px;
+            box-shadow: 0 8px 20px rgba(0,0,0,0.05);
+            transition: all 0.3s ease;
+            text-decoration: none;
+            color: inherit;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 15px;
+        }
+
+        .game-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 12px 30px rgba(0,123,255,0.2);
+        }
+
+        .game-card i {
+            font-size: 3em;
+            color: var(--primary-color);
+        }
+
+        .game-card span {
+            font-weight: 700;
+        }
+
+        @media (prefers-color-scheme: dark) {
+            :root {
+                --bg-light: #121212;
+                --text-dark: #e0e0e0;
+                --glass-bg: rgba(30, 30, 30, 0.85);
+            }
+            .game-card {
+                background: #252525;
+            }
+        }
+    </style>
+</head>
+
+<body>
+    <header id="top-bar">
+        <a href="/"><i class="fas fa-chevron-left"></i> 仙人Tubeに戻る</a>
+    </header>
+
+    <div id="contents">
+        <h2><i class="fas fa-gamepad"></i> Games</h2>
+        <div class="game-grid">
+            <a href="/block.html" class="game-card">
+                <i class="fas fa-cubes"></i>
+                <span>ブロックブラスト</span>
+            </a>
+            <a href="/tumu.html" class="game-card">
+                <i class="fas fa-circle"></i>
+                <span>ツムツム</span>
+            </a>
+            <a href="/2048.html" class="game-card">
+                <i class="fas fa-th"></i>
+                <span>2048</span>
+            </a>
+            <a href="#" class="game-card">
+                <i class="fas fa-chess"></i>
+                <span>マインスイーパー</span>
+            </a>
+            <a href="#" class="game-card">
+                <i class="fas fa-running"></i>
+                <span>アクションゲーム</span>
+            </a>
+            <a href="#" class="game-card">
+                <i class="fas fa-terminal"></i>
+                <span>タイピング練習</span>
+            </a>
+        </div>
+    </div>
+</body>
+
+</html>
