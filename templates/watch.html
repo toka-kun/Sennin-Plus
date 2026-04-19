@@ -89,8 +89,9 @@
         }
 
         /* --- 再生画面レイアウト --- */
+        /* iPad等、スマホ以外の画面サイズで2.3:1の比率に設定 */
         .watch-container {
-            display: grid; grid-template-columns: 1fr 400px; gap: 30px;
+            display: grid; grid-template-columns: 2.3fr 1fr; gap: 30px;
             max-width: 1700px; margin: 20px auto; padding: 0 30px;
         }
 
@@ -116,8 +117,9 @@
         }
         @keyframes spin { to { transform: rotate(360deg); } }
 
-        .video-details {
-            background: var(--card-bg); border-radius: 20px; padding: 25px; margin-top: 25px;
+        /* タイトル・概要・コメントをそれぞれ別のカードとして分離 */
+        .video-details, .description-card, .comment-section {
+            background: var(--card-bg); border-radius: 20px; padding: 25px; margin-top: 20px;
             box-shadow: 0 4px 15px rgba(0,0,0,0.05);
         }
 
@@ -131,7 +133,6 @@
         }
         .quality-btn:hover { background: var(--primary-color); color: #fff; transform: translateY(-2px); }
 
-        /* プルダウン形式の追加 */
         .select-styled {
             padding: 8px 15px; border-radius: 10px; border: 1px solid var(--border-color);
             background: var(--card-bg); color: var(--text-dark); outline: none; cursor: pointer;
@@ -146,13 +147,19 @@
         .sub-count { font-size: 0.8rem; color: #888; }
 
         .description-box {
-            margin-top: 20px; padding-top: 20px; border-top: 1px solid var(--border-color);
             font-size: 0.95rem; line-height: 1.8; color: var(--text-dark);
         }
 
-        /* --- コメントセクション --- */
-        .comment-section { margin-top: 30px; }
-        .comment-item { display: flex; gap: 15px; margin-bottom: 25px; }
+        /* --- コメントセクションとカードUI --- */
+        .comment-section h3 { margin-top: 0; margin-bottom: 20px; }
+        .comment-item { 
+            display: flex; gap: 15px; margin-bottom: 15px; 
+            background: rgba(0,0,0,0.02); padding: 15px; border-radius: 15px;
+            border: 1px solid var(--border-color);
+        }
+        @media (prefers-color-scheme: dark) {
+            .comment-item { background: rgba(255,255,255,0.03); }
+        }
         .comment-item img { width: 40px; height: 40px; border-radius: 50%; }
         .comment-author { font-weight: 700; font-size: 0.9rem; margin-bottom: 5px; }
         .comment-text { font-size: 0.9rem; line-height: 1.5; }
@@ -168,7 +175,7 @@
         .recommend-title { font-size: 0.9rem; font-weight: 700; line-height: 1.3; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
         .recommend-meta { font-size: 0.75rem; color: #888; margin-top: 5px; }
 
-        @media (max-width: 1100px) {
+        @media (max-width: 900px) {
             .watch-container { grid-template-columns: 1fr; padding: 0 15px; }
             .recommend-section { margin-top: 30px; }
         }
@@ -229,24 +236,27 @@
                         <div class="sub-count">登録者数 {{ subscribers_count }}</div>
                     </div>
                 </div>
+            </div>
 
+            <div class="description-card">
+                <h3 style="margin-top:0; font-size: 1.1rem;"><i class="fas fa-align-left" style="margin-right:8px; color:var(--primary-color);"></i>概要欄</h3>
                 <div class="description-box">
                     {{ description | safe }}
                 </div>
+            </div>
 
-                <div class="comment-section">
-                    <h3 style="border-bottom: 2px solid var(--primary-color); display: inline-block; padding-bottom: 5px;">コメント</h3>
-                    <div id="comment-list">
-                        {% for c in comments %}
-                        <div class="comment-item">
-                            <img src="{{ c.authorThumbnails[-1].url if c.authorThumbnails else '' }}" alt="u">
-                            <div>
-                                <div class="comment-author">{{ c.author }} • {{ c.publishedText }}</div>
-                                <div class="comment-text">{{ c.contentHtml | safe }}</div>
-                            </div>
+            <div class="comment-section">
+                <h3 style="border-bottom: 2px solid var(--primary-color); display: inline-block; padding-bottom: 5px;">コメント</h3>
+                <div id="comment-list">
+                    {% for c in comments %}
+                    <div class="comment-item">
+                        <img src="{{ c.authorThumbnails[-1].url if c.authorThumbnails else '' }}" alt="u">
+                        <div>
+                            <div class="comment-author">{{ c.author }} • {{ c.publishedText }}</div>
+                            <div class="comment-text">{{ c.contentHtml | safe }}</div>
                         </div>
-                        {% endfor %}
                     </div>
+                    {% endfor %}
                 </div>
             </div>
         </div>
@@ -269,6 +279,16 @@
         const video = document.getElementById('video-player');
         const audio = document.getElementById('audio-sync');
         const loader = document.getElementById('loader');
+
+        // 読み込み開始2秒後に再読み込みする機能 (初回のみ)
+        window.addEventListener('load', () => {
+            if (!sessionStorage.getItem('reloaded_{{ videoid }}')) {
+                setTimeout(() => {
+                    sessionStorage.setItem('reloaded_{{ videoid }}', 'true');
+                    location.reload();
+                }, 2000);
+            }
+        });
 
         video.addEventListener('waiting', () => { loader.style.display = 'flex'; });
         video.addEventListener('playing', () => { loader.style.display = 'none'; });
