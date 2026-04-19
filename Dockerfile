@@ -1,25 +1,29 @@
-# ベースイメージにPython 3.11を使用
+# ベースイメージの指定
 FROM python:3.11-slim
 
-# システムパッケージのアップデートとFFmpegのインストール
-RUN apt-get update && apt-get install -y \
-    ffmpeg \
-    curl \
-    && apt-get clean \
-    && rm -rf /var/lib/apt/lists/*
-
-# 作業ディレクトリを作成
+# コンテナ内の作業ディレクトリを設定
 WORKDIR /app
 
-# 依存関係ファイルをコピーしてインストール
+# 環境変数の設定 (Pythonがpycファイルを作成しないようにし、標準入出力をバッファリングしない)
+ENV PYTHONDONTWRITEBYTECODE 1
+ENV PYTHONUNBUFFERED 1
+
+# 依存関係のインストールに必要な最小限のツールをインストール（必要に応じて）
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    build-essential \
+    && rm -rf /var/lib/apt/lists/*
+
+# requirements.txt をコピーしてインストール
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-# 全てのソースコードをコピー
+# アプリケーションのソースコードをコピー
+# (main.py と templates フォルダがカレントディレクトリにある想定)
 COPY . .
 
-# templatesディレクトリが存在することを確認（デバッグ用）
-RUN ls -R /app/templates
+# アプリケーションが使用するポートを公開
+EXPOSE 8000
 
-# Renderのポート環境変数に対応して起動
-CMD gunicorn --bind 0.0.0.0:$PORT api.index:app
+# アプリケーションを起動
+# main:app は main.py の app インスタンスを指します
+CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000"]
