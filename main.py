@@ -210,10 +210,48 @@ async def playlist(request: Request, list: str = Query(...)):
         return HTMLResponse(content=f"Error: {str(e)}", status_code=500)
 
 @app.get("/channel/{ucid}", response_class=HTMLResponse)
-async def channel(request: Request, ucid: str, sort_by: str = "newest"):
+async def channel(request: Request, ucid: str, sort_by: str = "newest", tab: str = "videos"):
     try:
-        # チャンネル情報と動画一覧を取得
-        channel_data = await fetch_invidious(f"/channels/{ucid}", {"sort_by": sort_by})
+        # 並行してデータを取得
+        tasks = [
+            fetch_invidious(f"/channels/{ucid}", {"sort_by": sort_by}),
+            fetch_invidious(f"/channels/{ucid}/shorts"),
+            fetch_invidious(f"/channels/{ucid}/playlists"),
+            fetch_invidious(f"/channels/{ucid}/community")
+        ]
+        
+        results = await asyncio.gather(*tasks, return_exceptions=True)
+        
+        channel_data = results[0] if not isinstance(results[0], Exception) else {}
+        shorts_data = results[1] if not isinstance(results[1], Exception) else {}
+        playlists_data = results[2] if not isinstance(results[2], Exception) else {}
+        community_data = results[3] if not isinstance(results[3], Exception) else {}
+
+        # プレイリストの整形
+        playlists = []
+        for pl in playlists_data.get("playlists", []):
+            thumb = pl.get("playlistThumbnail", "")
+            if thumb and not thumb.startswith("http"):
+                thumb = f"https://img.youtube.com/vi/{thumb}/mqdefault.jpg"
+            playlists.append({
+                "id": pl.get("playlistId", ""),
+                "title": pl.get("title", ""),
+                "video_count": pl.get("videoCount", 0),
+                "thumbnail": thumb,
+            })
+
+        # コミュニティ投稿の整形
+        community = []
+        for post in community_data.get("comments", []):
+            community.append({
+                "id": post.get("commentId", ""),
+                "content": post.get("contentHtml", "").replace("\n", "<br>"),
+                "published_text": post.get("publishedText", ""),
+                "likes": post.get("likeCount", 0),
+                "author": channel_data.get("author"),
+                "author_icon": channel_data.get("authorThumbnails", [{"url": ""}])[-1]["url"],
+            })
+
         return templates.TemplateResponse("channel.html", {
             "request": request,
             "ucid": ucid,
@@ -222,7 +260,11 @@ async def channel(request: Request, ucid: str, sort_by: str = "newest"):
             "sub_count": channel_data.get("subCountText", "非公開"),
             "description": channel_data.get("descriptionHtml", ""),
             "videos": channel_data.get("latestVideos", []),
-            "sort_by": sort_by
+            "shorts": shorts_data.get("videos", []),
+            "playlists": playlists,
+            "community": community,
+            "sort_by": sort_by,
+            "tab": tab
         })
     except Exception as e:
         return HTMLResponse(content=f"Error: {str(e)}", status_code=500)
