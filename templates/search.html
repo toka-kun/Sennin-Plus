@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>「{{ word }}」の検索結果 - 仙人Tube+</title>
+    <title>「{{ query }}」の検索結果 - 仙人Tube+</title>
     <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
     <script src="https://code.jquery.com/jquery-3.5.1.min.js"></script>
@@ -121,7 +121,7 @@
         <div class="logo-small" onclick="location.href='/'"><h2>仙人Tube<sup>+</sup></h2></div>
         <form action="/search" method="get" class="search-container">
             <i class="fas fa-search"></i>
-            <input id="searchbox" type="search" name="q" value="{{ word }}" placeholder="動画を検索..." autocomplete="off">
+            <input id="searchbox" type="search" name="q" value="{{ query }}" placeholder="動画を検索..." autocomplete="off">
         </form>
         <div style="width: 40px;"></div>
     </header>
@@ -138,10 +138,16 @@
             {% for result in results %}
                 {# Python側で既に動画のみに絞り込まれています #}
                 <div class="grid-item">
-                    <a href="/watch?v={{ result['id'] }}" class="video-card">
+                    <a href="/watch?v={{ result['videoId'] }}" class="video-card">
                         <div class="thumbnail-box">
-                            <img class="thumbnail" loading="lazy" src="/thumbnail?v={{ result['id'] }}" onerror="this.src='http://googleusercontent.com/youtube.com/vi/{{ result['id'] }}/mqdefault.jpg';">
-                            <p class="length-tag">{{ result["length"] }}</p>
+                            <img class="thumbnail" loading="lazy" src="/proxy/thumb?v={{ result['videoId'] }}" onerror="this.src='https://i.ytimg.com/vi/{{ result['videoId'] }}/mqdefault.jpg';">
+                            <p class="length-tag">
+                                {% if result["lengthSeconds"] %}
+                                    {{ "%02d:%02d" | format(result["lengthSeconds"] // 60, result["lengthSeconds"] % 60) }}
+                                {% else %}
+                                    LIVE
+                                {% endif %}
+                            </p>
                         </div>
                         <div class="video-info">
                             <div class="author-icon" style="background-color: #ddd;"></div>
@@ -149,7 +155,7 @@
                                 <div class="video-title">{{ result['title'] }}</div>
                                 <div class="video-meta">
                                     <strong>{{ result["author"] }}</strong><br>
-                                    {{ result["view_count_text"] }} • {{ result["published"] }}
+                                    {{ result["viewCountText"] or result["viewCount"] }} • {{ result["publishedText"] }}
                                 </div>
                             </div>
                         </div>
@@ -171,7 +177,8 @@
         {% endif %}
 
         <div style="text-align:right; margin-top: 40px; padding: 20px;">
-            <a href="/search?q={{ word }}&page={{ (request.query_params.get('page', '1')|int) + 1 }}" style="text-decoration: none; color: var(--primary-color); font-weight: bold;">次のページ ></a>
+            {# バックエンドのrequest_invidious_apiは直接ページを扱わないため、簡易的なリンクとして実装 #}
+            <a href="/search?q={{ query }}&page=2" style="text-decoration: none; color: var(--primary-color); font-weight: bold;">次のページ ></a>
         </div>
     </main>
 
