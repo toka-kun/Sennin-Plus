@@ -150,8 +150,43 @@
 
         .video-card:hover { transform: translateY(-6px); box-shadow: 0 12px 30px rgba(0,0,0,0.12); }
         .thumbnail-box { position: relative; width: 100%; aspect-ratio: 16/9; overflow: hidden; background-color: #000; }
+        
+        /* Short動画用の専用スタイル (縦長カード) */
+        .video-card.is-short {
+            aspect-ratio: 9/16;
+            position: relative;
+        }
+        .video-card.is-short .thumbnail-box {
+            height: 100%;
+            aspect-ratio: auto;
+        }
+        .video-card.is-short .video-info {
+            position: absolute;
+            bottom: 0;
+            left: 0;
+            width: 100%;
+            background: linear-gradient(transparent, rgba(0,0,0,0.8));
+            color: white;
+            padding: 15px 10px;
+            box-sizing: border-box;
+        }
+        .video-card.is-short .video-title {
+            font-size: 0.85rem;
+            color: white;
+            text-shadow: 0 1px 2px rgba(0,0,0,0.5);
+        }
+        .video-card.is-short .video-meta {
+            color: #ccc;
+        }
+        .video-card.is-short .author-icon {
+            border: 1.5px solid white;
+            width: 30px;
+            height: 30px;
+        }
+
         .thumbnail { width: 100%; height: 100%; object-fit: cover; }
         .length-tag { position: absolute; bottom: 8px; right: 8px; background: rgba(0,0,0,0.8); color: #fff; padding: 2px 6px; border-radius: 4px; font-size: 12px; }
+        .short-badge { position: absolute; top: 8px; left: 8px; background: #ff0000; color: #fff; padding: 2px 8px; border-radius: 4px; font-size: 10px; font-weight: bold; }
 
         .video-info { padding: 15px; display: flex; gap: 12px; }
         .author-icon { width: 36px; height: 36px; border-radius: 50%; background: #eee; flex-shrink: 0; background-size: cover; background-position: center; overflow: hidden; }
@@ -212,9 +247,12 @@
                         <div class="video-meta">{{ result['subCountText'] }} • {{ result['videoCount'] }} 本の動画</div>
                     </a>
                     {% else %}
-                    <a href="/{% if result['type'] == 'playlist' %}playlist?list={% else %}watch?v={% endif %}{{ result['videoId'] or result['playlistId'] }}" class="video-card">
+                    {# Short判別ロジック：60秒以内かつビデオタイプ #}
+                    {% set is_short = result['type'] == 'video' and result['lengthSeconds'] and result['lengthSeconds'] <= 60 %}
+                    <a href="{% if is_short %}/shorts/{{ result['videoId'] }}{% elif result['type'] == 'playlist' %}/playlist?list={{ result['playlistId'] }}{% else %}/watch?v={{ result['videoId'] }}{% endif %}" class="video-card {% if is_short %}is-short{% endif %}">
                         <div class="thumbnail-box">
                             <img class="thumbnail" loading="lazy" src="/proxy/thumb?v={{ result['videoId'] or result['playlistId'] }}" onerror="this.src='{{ result['videoThumbnails'][0]['url'] if result['videoThumbnails'] else 'https://i.ytimg.com/vi/' + (result['videoId'] or '') + '/mqdefault.jpg' }}';">
+                            {% if is_short %}<div class="short-badge"><i class="fas fa-bolt"></i> SHORTS</div>{% endif %}
                             <p class="length-tag">
                                 {% if result["lengthSeconds"] %}
                                     {{ "%02d:%02d" | format(result["lengthSeconds"] // 60, result["lengthSeconds"] % 60) }}
