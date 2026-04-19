@@ -1,0 +1,164 @@
+from fastapi import FastAPI, Request, Query
+from fastapi.responses import HTMLResponse, RedirectResponse, Response
+from fastapi.templating import Jinja2Templates
+from fastapi.staticfiles import StaticFiles
+import httpx
+import asyncio
+import json
+import random
+
+app = FastAPI()
+
+# テンプレートの設定
+templates = Jinja2Templates(directory="templates")
+
+# 使用するInvidiousインスタンスのリスト
+INVIDIOUS_INSTANCES = [
+    'https://inv.nadeko.net/',
+    'https://invidious.f5.si/',
+    'https://invidious.lunivers.trade/',
+    'https://invidious.ducks.party/',
+    'https://iv.melmac.space/',
+    'https://invidious.nerdvpn.de/',
+]
+
+async def fetch_invidious(endpoint: str, params: dict = None):
+    # インスタンスリストをシャッフルして、成功するまで試行
+    instances = list(INVIDIOUS_INSTANCES)
+    random.shuffle(instances)
+    
+    last_error = None
+    async with httpx.AsyncClient(timeout=10.0) as client:
+        for instance in instances:
+            try:
+                url = f"{instance.rstrip('/')}/api/v1{endpoint}"
+                response = await client.get(url, params=params)
+                response.raise_for_status()
+                return response.json()
+            except Exception as e:
+                last_error = e
+                continue
+    
+    raise last_error if last_error else Exception("All instances failed")
+
+## --- ルーティング ---
+
+@app.get("/", response_class=HTMLResponse)
+async def index(request: Request):
+    # 初期画面として home.html を返す
+    return templates.TemplateResponse("home.html", {"request": request})
+
+@app.get("/search", response_class=HTMLResponse)
+async def search(request: Request, q: str = Query(...), page: int = 1):
+    try:
+        # APIから検索結果を取得
+        data = await fetch_invidious("/search", {"q": q, "page": page, "type": "video"})
+        
+        # テンプレートに渡す形式に整形
+        results = []
+        for item in data:
+            results.append({
+                "videoId": item.get("videoId"),
+                "title": item.get("title"),
+                "lengthSeconds": item.get("lengthSeconds"),
+                "author": item.get("author"),
+                "viewCountText": item.get("viewCountText"),
+                "viewCount": item.get("viewCount"),
+                "publishedText": item.get("publishedText")
+            })
+            
+        return templates.TemplateResponse("search.html", {
+            "request": request, 
+            "query": q, 
+            "results": results
+        })
+    except Exception as e:
+        return templates.TemplateResponse("search.html", {
+            "request": request, 
+            "query": q, 
+            "results": []
+        })
+
+@app.get("/watch", response_class=HTMLResponse)
+async def watch(request: Request, v: str = Query(...)):
+    try:
+        # 動画詳細情報を取得
+        video_data = await fetch_invidious(f"/videos/{v}")
+        
+        # ストリームURLの抽出 (format: mp4)
+        stream_urls = []
+        video_urls = []
+        for fmt in video_data.get("formatStreams", []):
+            stream_urls.append({
+                "url": fmt.get("url"),
+                "resolution": fmt.get("qualityLabel")
+            })
+            video_urls.append(fmt.get("url"))
+
+        # デフォルトURL（最初のもの）
+        if not video_urls:
+            # 別の形式(adaptiveFormats)から探すなどの処理
+            video_urls = [fmt.get("url") for fmt in video_data.get("adaptiveFormats", []) if "video" in fmt.get("type", "")]
+
+        # 関連動画の整形
+        recommended = []
+        for rec in video_data.get("recommendedVideos", []):
+            recommended.append({
+                "video_id": rec.get("videoId"),
+                "title": rec.get("title"),
+                "author": rec.get("author"),
+                "view_count_text": rec.get("viewCountText")
+            })
+
+        return templates.TemplateResponse("watch.html", {
+            "request": request,
+            "videoid": v,
+            "video_title": video_data.get("title"),
+            "videourls": video_urls,
+            "streamUrls": stream_urls,
+            "author": video_data.get("author"),
+            "author_icon": video_data.get("authorThumbnails", [{"url": ""}])[-1]["url"],
+            "subscribers_count": video_data.get("subCountText", "非公開"),
+            "view_count": video_data.get("viewCount", 0),
+            "description": video_data.get("descriptionHtml", "").replace("\n", "<br>"),
+            "recommended_videos": recommended
+        })
+    except Exception as e:
+        return HTMLResponse(content=f"Error: {str(e)}", status_code=500)
+
+@app.get("/suggest")
+async def suggest(keyword: str):
+    # 検索候補（サジェスト）機能
+    # いずれかのインスタンスからサジェストを取得
+    instances = list(INVIDIOUS_INSTANCES)
+    random.shuffle(instances)
+    
+    async with httpx.AsyncClient() as client:
+        for instance in instances:
+            try:
+                resp = await client.get(f"{instance.rstrip('/')}/api/v1/search/suggestions", params={"q": keyword})
+                if resp.status_code == 200:
+                    return resp.json().get("suggestions", [])
+            except:
+                continue
+    return []
+
+@app.get("/proxy/thumb")
+async def proxy_thumb(v: str):
+    # 画像のブロックを避けるためのプロキシ
+    thumb_url = f"https://i.ytimg.com/vi/{v}/mqdefault.jpg"
+    async with httpx.AsyncClient() as client:
+        try:
+            resp = await client.get(thumb_url)
+            return Response(content=resp.content, media_type="image/jpeg")
+        except:
+            return Response(status_code=404)
+
+@app.get("/thumbnail")
+async def thumbnail(v: str):
+    # watch.html用のサムネイルプロキシ
+    return await proxy_thumb(v)
+
+if __name__ == "__main__":
+    import uvicorn
+    uvicorn.run(app, host="0.0.0.0", port=8000)
