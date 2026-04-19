@@ -172,15 +172,15 @@ def watch_video(v: str, request: Request, yuki: Union[str, None] = Cookie(None))
     data = get_video_data(v)
     context = {
         "videoid": v,
-        "video_title": data[0]['title'],
-        "videourls": data[0]['video_urls'],
-        "streamUrls": data[0]['streamUrls'],
-        "description": data[0]['description_html'],
-        "author": data[0]['author'],
-        "author_icon": data[0]['author_thumbnails_url'],
-        "subscribers_count": data[0]['subscribers_count'],
-        "view_count": data[0]['view_count'],
-        "recommended_videos": data[1]
+        "video_title": data['title'],
+        "videourls": data['video_urls'],
+        "streamUrls": data['streamUrls'],
+        "description": data['description_html'],
+        "author": data['author'],
+        "author_icon": data['author_thumbnails_url'],
+        "subscribers_count": data['subscribers_count'],
+        "view_count": data['view_count'],
+        "recommended_videos": data
     }
     return templates.TemplateResponse(request=request, name="watch.html", context=context)
 
@@ -189,6 +189,11 @@ def search(q: str, request: Request, page: int = 1, yuki: Union[str, None] = Coo
     if not check_auth(yuki): return RedirectResponse("/")
     raw = request_api(f"/search?q={urllib.parse.quote(q)}&page={page}&hl=jp", invidious_api.search)
     results = json.loads(raw)
+    
+    # 修正箇所: resultsがリストでない（エラー辞書などの）場合、空リストにする
+    if not isinstance(results, list):
+        results = []
+        
     context = {"results": results, "word": q}
     return templates.TemplateResponse(request=request, name="search.html", context=context)
 
