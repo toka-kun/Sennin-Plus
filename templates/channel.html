@@ -1,0 +1,197 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{ author }} - 仙人Tube+</title>
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <style>
+        :root {
+            --primary-color: #007bff;
+            --bg-light: #fdfdfd;
+            --text-dark: #333333;
+            --gray-logo: #555555;
+            --glass-bg: rgba(255, 255, 255, 0.85);
+            --card-bg: #ffffff;
+            --border-color: #e5e5e5;
+        }
+
+        @media (prefers-color-scheme: dark) {
+            :root {
+                --bg-light: #121212;
+                --text-dark: #e0e0e0;
+                --glass-bg: rgba(30, 30, 30, 0.85);
+                --gray-logo: #bbbbbb;
+                --card-bg: #252525;
+                --border-color: #333;
+            }
+        }
+
+        body {
+            font-family: 'Noto Sans JP', sans-serif;
+            margin: 0;
+            background-color: var(--bg-light);
+            color: var(--text-dark);
+            padding-top: 80px;
+        }
+
+        #top-bar {
+            position: fixed; top: 0; left: 0; width: 100%;
+            background-color: var(--glass-bg);
+            backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px);
+            z-index: 1000; padding: 12px 25px;
+            display: flex; align-items: center; justify-content: space-between;
+            box-shadow: 0 2px 15px rgba(0, 0, 0, 0.05);
+            box-sizing: border-box;
+        }
+
+        .logo-small h2 {
+            font-size: 1.5rem; color: var(--gray-logo); margin: 0; cursor: pointer;
+        }
+
+        .logo-small sup { color: var(--primary-color); font-size: 0.6em; }
+
+        .search-container {
+            position: relative; flex: 0 1 600px; margin: 0 20px;
+        }
+
+        .search-container input {
+            width: 100%; padding: 12px 20px 12px 45px;
+            border: 1px solid var(--border-color); border-radius: 50px;
+            background: var(--card-bg); color: var(--text-dark);
+            outline: none; transition: all 0.3s; box-sizing: border-box;
+        }
+
+        .search-container i {
+            position: absolute; left: 18px; top: 50%; transform: translateY(-50%);
+            color: #aaa;
+        }
+
+        /* チャンネルヘッダー */
+        .channel-header {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 40px 20px;
+            display: flex;
+            align-items: center;
+            gap: 25px;
+        }
+
+        .channel-icon {
+            width: 120px;
+            height: 120px;
+            border-radius: 50%;
+            object-fit: cover;
+            border: 2px solid var(--border-color);
+        }
+
+        .channel-meta h1 { margin: 0; font-size: 2rem; }
+        .sub-count { color: #888; font-size: 1rem; margin-bottom: 10px; }
+        
+        /* ソート・ナビゲーション */
+        .channel-nav {
+            max-width: 1200px;
+            margin: 0 auto;
+            border-bottom: 1px solid var(--border-color);
+            padding: 0 20px;
+            display: flex;
+            gap: 20px;
+        }
+
+        .nav-item {
+            padding: 15px 0;
+            cursor: pointer;
+            font-weight: bold;
+            border-bottom: 3px solid transparent;
+            text-decoration: none;
+            color: inherit;
+        }
+
+        .nav-item.active {
+            border-bottom-color: var(--primary-color);
+            color: var(--primary-color);
+        }
+
+        /* 動画グリッド */
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 30px 20px;
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+            gap: 20px;
+        }
+
+        .video-card {
+            text-decoration: none;
+            color: inherit;
+            transition: transform 0.2s;
+        }
+
+        .video-card:hover { transform: translateY(-5px); }
+
+        .thumb-box {
+            position: relative;
+            width: 100%;
+            aspect-ratio: 16/9;
+            background: #000;
+            border-radius: 12px;
+            overflow: hidden;
+        }
+
+        .thumb { width: 100%; height: 100%; object-fit: cover; }
+
+        .v-title {
+            margin-top: 10px;
+            font-weight: bold;
+            font-size: 0.95rem;
+            display: -webkit-box;
+            -webkit-line-clamp: 2;
+            -webkit-box-orient: vertical;
+            overflow: hidden;
+        }
+
+        .v-meta { font-size: 0.85rem; color: #888; margin-top: 4px; }
+    </style>
+</head>
+<body>
+    <header id="top-bar">
+        <div class="logo-small" onclick="location.href='/'"><h2>仙人Tube<sup>+</sup></h2></div>
+        <form action="/search" method="get" class="search-container">
+            <i class="fas fa-search"></i>
+            <input type="text" name="q" placeholder="検索..." autocomplete="off">
+        </form>
+        <div style="width: 40px;"></div>
+    </header>
+
+    <div class="channel-header">
+        <img src="{{ author_icon }}" class="channel-icon" alt="icon">
+        <div class="channel-meta">
+            <h1>{{ author }}</h1>
+            <div class="sub-count">{{ sub_count }}</div>
+            <div style="font-size: 0.85rem; opacity: 0.8; max-width: 600px;">{{ description|safe }}</div>
+        </div>
+    </div>
+
+    <nav class="channel-nav">
+        <a href="/channel/{{ ucid }}?sort_by=newest" class="nav-item {{ 'active' if sort_by == 'newest' else '' }}">最新</a>
+        <a href="/channel/{{ ucid }}?sort_by=oldest" class="nav-item {{ 'active' if sort_by == 'oldest' else '' }}">古い順</a>
+        <a href="/channel/{{ ucid }}?sort_by=popular" class="nav-item {{ 'active' if sort_by == 'popular' else '' }}">人気</a>
+    </nav>
+
+    <main class="container">
+        {% for video in videos %}
+        <a href="/watch?v={{ video.videoId }}" class="video-card">
+            <div class="thumb-box">
+                <img class="thumb" src="/proxy/thumb?v={{ video.videoId }}" loading="lazy">
+            </div>
+            <div class="v-title">{{ video.title }}</div>
+            <div class="v-meta">
+                {{ video.viewCountText }} • {{ video.publishedText }}
+            </div>
+        </a>
+        {% endfor %}
+    </main>
+</body>
+</html>
