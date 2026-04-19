@@ -47,31 +47,46 @@ async def index(request: Request):
     return templates.TemplateResponse("home.html", {"request": request})
 
 @app.get("/search", response_class=HTMLResponse)
-async def search(request: Request, q: str = Query(...), page: int = 1):
+async def search(request: Request, q: str = Query(...), page: int = 1, type: str = "video"):
     try:
-        data = await fetch_invidious("/search", {"q": q, "page": page, "type": "video"})
+        # Invidious APIのtype指定に合わせて調整 (Shortsはvideoとして扱い検索ワードで調整されることもあるが基本はvideo)
+        search_type = type if type != "short" else "video"
+        # Shortsの場合は検索ワードに反映させるなどの処理も可能だが、ここではAPIのtypeに準拠
+        
+        data = await fetch_invidious("/search", {"q": q, "page": page, "type": search_type})
         results = []
         for item in data:
             results.append({
+                "type": item.get("type"),
                 "videoId": item.get("videoId"),
+                "playlistId": item.get("playlistId"),
+                "authorId": item.get("authorId"),
                 "title": item.get("title"),
                 "lengthSeconds": item.get("lengthSeconds"),
                 "author": item.get("author"),
+                "authorThumbnails": item.get("authorThumbnails"),
+                "videoThumbnails": item.get("videoThumbnails"),
                 "viewCountText": item.get("viewCountText"),
                 "viewCount": item.get("viewCount"),
-                "publishedText": item.get("publishedText")
+                "publishedText": item.get("publishedText"),
+                "subCountText": item.get("subCountText"),
+                "videoCount": item.get("videoCount")
             })
             
         return templates.TemplateResponse("search.html", {
             "request": request, 
             "query": q, 
-            "results": results
+            "results": results,
+            "type": type,
+            "page": page
         })
     except Exception as e:
         return templates.TemplateResponse("search.html", {
             "request": request, 
             "query": q, 
-            "results": []
+            "results": [],
+            "type": type,
+            "page": page
         })
 
 @app.get("/watch", response_class=HTMLResponse)
