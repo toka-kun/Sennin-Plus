@@ -163,6 +163,7 @@
         .stats-bar i { margin-right: 5px; color: var(--primary-color); }
 
         .channel-info { display: flex; align-items: center; gap: 15px; margin-top: 20px; }
+        .channel-info a { display: flex; align-items: center; gap: 15px; text-decoration: none; color: inherit; }
         .channel-info img { width: 48px; height: 48px; border-radius: 50%; object-fit: cover; }
         .channel-name { font-weight: 700; font-size: 1.1rem; }
         .sub-count { font-size: 0.8rem; color: #888; }
@@ -194,7 +195,7 @@
         .recommend-title { font-size: 0.9rem; font-weight: 700; line-height: 1.3; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
         .recommend-meta { font-size: 0.75rem; color: #888; margin-top: 5px; }
 
-        /* 新設: この動画についてカード */
+        /* --- 新設: この動画についてカード --- */
         .info-card {
             background: var(--card-bg); border-radius: 20px; padding: 25px; margin-top: 25px;
             box-shadow: 0 4px 15px rgba(0,0,0,0.05);
@@ -299,11 +300,13 @@
                     </select>
                 </div>
                 <div class="channel-info">
-                    <img src="{{ author_icon }}" alt="icon">
-                    <div>
-                        <div class="channel-name">{{ author }}</div>
-                        <div class="sub-count">登録者数 {{ subscribers_count }}</div>
-                    </div>
+                    <a href="/channel/{{ authorId }}">
+                        <img src="{{ author_icon }}" alt="icon">
+                        <div>
+                            <div class="channel-name">{{ author }}</div>
+                            <div class="sub-count">登録者数 {{ subscribers_count }}</div>
+                        </div>
+                    </a>
                 </div>
             </div>
 
@@ -398,11 +401,17 @@
             setTimeout(reloadVideoSource, 1000);
         });
 
-        // 音声同期ロジック
+        // 音声同期ロジック（0.4秒以上のズレを補正）
         video.addEventListener('play', () => audio.play());
         video.addEventListener('pause', () => audio.pause());
         video.addEventListener('seeking', () => { audio.currentTime = video.currentTime; });
         video.addEventListener('ratechange', () => { audio.playbackRate = video.playbackRate; });
+        
+        video.addEventListener('timeupdate', () => {
+            if (audio.src && Math.abs(video.currentTime - audio.currentTime) > 0.4) {
+                audio.currentTime = video.currentTime;
+            }
+        });
 
         function showNotify(msg, isError = false) {
             const alertBox = document.getElementById("custom-alert");
