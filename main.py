@@ -51,9 +51,10 @@ async def search(request: Request, q: str = Query(...), page: int = 1, type: str
     try:
         # Invidious APIのtype指定に合わせて調整 (Shortsはvideoとして扱い検索ワードで調整されることもあるが基本はvideo)
         search_type = type if type != "short" else "video"
-        # Shortsの場合は検索ワードに反映させるなどの処理も可能だが、ここではAPIのtypeに準拠
+        # 検索キーワードに"shorts"を付与して精度を上げる
+        query_q = q if type != "short" else f"{q} shorts"
         
-        data = await fetch_invidious("/search", {"q": q, "page": page, "type": search_type})
+        data = await fetch_invidious("/search", {"q": query_q, "page": page, "type": search_type})
         results = []
         for item in data:
             results.append({
@@ -88,6 +89,36 @@ async def search(request: Request, q: str = Query(...), page: int = 1, type: str
             "type": type,
             "page": page
         })
+
+@app.get("/shorts/{v}", response_class=HTMLResponse)
+async def shorts_player(request: Request, v: str):
+    try:
+        # 動画詳細とコメントを並行して取得
+        video_task = fetch_invidious(f"/videos/{v}")
+        comment_task = fetch_invidious(f"/comments/{v}")
+        video_data, comment_data = await asyncio.gather(video_task, comment_task, return_exceptions=True)
+
+        if isinstance(video_data, Exception): raise video_data
+        
+        # 動画URLのリスト作成
+        video_urls = [fmt.get("url") for fmt in video_data.get("formatStreams", [])]
+        if not video_urls:
+            adaptive = video_data.get("adaptiveFormats", [])
+            video_urls = [fmt.get("url") for fmt in adaptive if "video" in fmt.get("type", "")]
+
+        return templates.TemplateResponse("short.html", {
+            "request": request,
+            "videoid": v,
+            "video_title": video_data.get("title"),
+            "videourls": video_urls,
+            "author": video_data.get("author"),
+            "view_count": video_data.get("viewCount", 0),
+            "like_count": video_data.get("likeCount", 0),
+            "description": video_data.get("descriptionHtml", "").replace("\n", "<br>"),
+            "comments": comment_data.get("comments", []) if not isinstance(comment_data, Exception) else []
+        })
+    except Exception as e:
+        return HTMLResponse(content=f"Error: {str(e)}", status_code=500)
 
 @app.get("/watch", response_class=HTMLResponse)
 async def watch(request: Request, v: str = Query(...)):
