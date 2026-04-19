@@ -23,12 +23,11 @@ INVIDIOUS_INSTANCES = [
 ]
 
 async def fetch_invidious(endpoint: str, params: dict = None):
-    # インスタンスリストをシャッフルして、成功するまで試行
     instances = list(INVIDIOUS_INSTANCES)
     random.shuffle(instances)
     
     last_error = None
-    async with httpx.AsyncClient(timeout=10.0) as client:
+    async with httpx.AsyncClient(timeout=15.0) as client:
         for instance in instances:
             try:
                 url = f"{instance.rstrip('/')}/api/v1{endpoint}"
@@ -45,16 +44,12 @@ async def fetch_invidious(endpoint: str, params: dict = None):
 
 @app.get("/", response_class=HTMLResponse)
 async def index(request: Request):
-    # 初期画面として home.html を返す
     return templates.TemplateResponse("home.html", {"request": request})
 
 @app.get("/search", response_class=HTMLResponse)
 async def search(request: Request, q: str = Query(...), page: int = 1):
     try:
-        # APIから検索結果を取得
         data = await fetch_invidious("/search", {"q": q, "page": page, "type": "video"})
-        
-        # テンプレートに渡す形式に整形
         results = []
         for item in data:
             results.append({
@@ -82,25 +77,48 @@ async def search(request: Request, q: str = Query(...), page: int = 1):
 @app.get("/watch", response_class=HTMLResponse)
 async def watch(request: Request, v: str = Query(...)):
     try:
-        # 動画詳細情報を取得
-        video_data = await fetch_invidious(f"/videos/{v}")
+        # 動画詳細とコメントを並行して取得
+        video_task = fetch_invidious(f"/videos/{v}")
+        comment_task = fetch_invidious(f"/comments/{v}")
+        video_data, comment_data = await asyncio.gather(video_task, comment_task, return_exceptions=True)
+
+        if isinstance(video_data, Exception): raise video_data
         
-        # ストリームURLの抽出 (format: mp4)
+        # ストリーム解析
         stream_urls = []
         video_urls = []
+        
+        # 音声のみのストリームを1つ確保（同期用）
+        audio_url = None
+        adaptive = video_data.get("adaptiveFormats", [])
+        for fmt in adaptive:
+            if "audio" in fmt.get("type", ""):
+                audio_url = fmt.get("url")
+                break
+
+        # 混合ストリーム(mp4等)
         for fmt in video_data.get("formatStreams", []):
             stream_urls.append({
                 "url": fmt.get("url"),
-                "resolution": fmt.get("qualityLabel")
+                "resolution": fmt.get("qualityLabel"),
+                "format": "mp4/mixed",
+                "audioUrl": ""
             })
             video_urls.append(fmt.get("url"))
 
-        # デフォルトURL（最初のもの）
-        if not video_urls:
-            # 別の形式(adaptiveFormats)から探すなどの処理
-            video_urls = [fmt.get("url") for fmt in video_data.get("adaptiveFormats", []) if "video" in fmt.get("type", "")]
+        # videoOnly(webm等)ストリームの追加
+        for fmt in adaptive:
+            if "video" in fmt.get("type", "") and "webm" in fmt.get("container", ""):
+                stream_urls.append({
+                    "url": fmt.get("url"),
+                    "resolution": fmt.get("qualityLabel"),
+                    "format": "webm/videoOnly",
+                    "audioUrl": audio_url # 同期再生用に音声を紐付け
+                })
 
-        # 関連動画の整形
+        if not video_urls and adaptive:
+            video_urls = [fmt.get("url") for fmt in adaptive if "video" in fmt.get("type", "")]
+
         recommended = []
         for rec in video_data.get("recommendedVideos", []):
             recommended.append({
@@ -120,43 +138,38 @@ async def watch(request: Request, v: str = Query(...)):
             "author_icon": video_data.get("authorThumbnails", [{"url": ""}])[-1]["url"],
             "subscribers_count": video_data.get("subCountText", "非公開"),
             "view_count": video_data.get("viewCount", 0),
+            "like_count": video_data.get("likeCount", 0),
             "description": video_data.get("descriptionHtml", "").replace("\n", "<br>"),
-            "recommended_videos": recommended
+            "recommended_videos": recommended,
+            "comments": comment_data.get("comments", []) if not isinstance(comment_data, Exception) else []
         })
     except Exception as e:
         return HTMLResponse(content=f"Error: {str(e)}", status_code=500)
 
 @app.get("/suggest")
 async def suggest(keyword: str):
-    # 検索候補（サジェスト）機能
-    # いずれかのインスタンスからサジェストを取得
     instances = list(INVIDIOUS_INSTANCES)
     random.shuffle(instances)
-    
     async with httpx.AsyncClient() as client:
         for instance in instances:
             try:
                 resp = await client.get(f"{instance.rstrip('/')}/api/v1/search/suggestions", params={"q": keyword})
                 if resp.status_code == 200:
                     return resp.json().get("suggestions", [])
-            except:
-                continue
+            except: continue
     return []
 
 @app.get("/proxy/thumb")
 async def proxy_thumb(v: str):
-    # 画像のブロックを避けるためのプロキシ
     thumb_url = f"https://i.ytimg.com/vi/{v}/mqdefault.jpg"
     async with httpx.AsyncClient() as client:
         try:
             resp = await client.get(thumb_url)
             return Response(content=resp.content, media_type="image/jpeg")
-        except:
-            return Response(status_code=404)
+        except: return Response(status_code=404)
 
 @app.get("/thumbnail")
 async def thumbnail(v: str):
-    # watch.html用のサムネイルプロキシ
     return await proxy_thumb(v)
 
 if __name__ == "__main__":
