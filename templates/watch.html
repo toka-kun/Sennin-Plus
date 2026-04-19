@@ -68,6 +68,29 @@
             color: #aaa;
         }
 
+        /* サジェストの視覚性向上 */
+        .ui-autocomplete {
+            background: var(--glass-bg) !important;
+            backdrop-filter: blur(20px) !important;
+            border-radius: 15px !important;
+            border: 1px solid var(--border-color) !important;
+            box-shadow: 0 10px 25px rgba(0,0,0,0.1) !important;
+            padding: 10px 0 !important;
+            font-family: 'Noto Sans JP', sans-serif !important;
+            z-index: 1100 !important;
+        }
+        .ui-menu-item-wrapper {
+            padding: 10px 20px !important;
+            color: var(--text-dark) !important;
+            transition: background 0.2s !important;
+        }
+        .ui-state-active {
+            background: var(--primary-color) !important;
+            color: #fff !important;
+            border: none !important;
+            margin: 0 !important;
+        }
+
         /* --- アニメーション付きカスタムアラート --- */
         #custom-alert {
             position: fixed; top: 90px; right: 20px;
@@ -89,7 +112,6 @@
         }
 
         /* --- 再生画面レイアウト --- */
-        /* iPad等、スマホ以外の画面サイズで2.3:1の比率に設定 */
         .watch-container {
             display: grid; grid-template-columns: 2.3fr 1fr; gap: 30px;
             max-width: 1700px; margin: 20px auto; padding: 0 30px;
@@ -117,7 +139,6 @@
         }
         @keyframes spin { to { transform: rotate(360deg); } }
 
-        /* タイトル・概要・コメントをそれぞれ別のカードとして分離 */
         .video-details, .description-card, .comment-section {
             background: var(--card-bg); border-radius: 20px; padding: 25px; margin-top: 20px;
             box-shadow: 0 4px 15px rgba(0,0,0,0.05);
@@ -150,7 +171,6 @@
             font-size: 0.95rem; line-height: 1.8; color: var(--text-dark);
         }
 
-        /* --- コメントセクションとカードUI --- */
         .comment-section h3 { margin-top: 0; margin-bottom: 20px; }
         .comment-item { 
             display: flex; gap: 15px; margin-bottom: 15px; 
@@ -164,7 +184,6 @@
         .comment-author { font-weight: 700; font-size: 0.9rem; margin-bottom: 5px; }
         .comment-text { font-size: 0.9rem; line-height: 1.5; }
 
-        /* --- 関連動画サイドバー --- */
         .recommend-section { display: flex; flex-direction: column; gap: 15px; }
         .recommend-card {
             display: flex; gap: 12px; text-decoration: none; color: inherit;
@@ -174,6 +193,41 @@
         .recommend-thumb { width: 160px; aspect-ratio: 16/9; border-radius: 12px; object-fit: cover; flex-shrink: 0; }
         .recommend-title { font-size: 0.9rem; font-weight: 700; line-height: 1.3; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
         .recommend-meta { font-size: 0.75rem; color: #888; margin-top: 5px; }
+
+        /* 新設: この動画についてカード */
+        .info-card {
+            background: var(--card-bg); border-radius: 20px; padding: 25px; margin-top: 25px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.05);
+        }
+        .info-card h3 { margin: 0 0 15px; font-size: 1.1rem; }
+        .info-buttons { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+        .info-btn {
+            background: rgba(0,0,0,0.05); color: var(--text-dark); border: none; padding: 12px;
+            border-radius: 10px; cursor: pointer; font-size: 0.85rem; font-weight: 700;
+            display: flex; align-items: center; justify-content: center; gap: 8px; transition: all 0.2s;
+            text-decoration: none;
+        }
+        @media (prefers-color-scheme: dark) { .info-btn { background: rgba(255,255,255,0.08); } }
+        .info-btn:hover { background: var(--primary-color); color: #fff; transform: translateY(-2px); }
+
+        /* モーダルスタイル */
+        .modal-overlay {
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0,0,0,0.7); backdrop-filter: blur(5px);
+            z-index: 3000; display: none; align-items: center; justify-content: center;
+        }
+        .modal-content {
+            background: var(--card-bg); padding: 30px; border-radius: 25px;
+            max-width: 500px; width: 90%; max-height: 80vh; overflow-y: auto;
+            position: relative; animation: modalIn 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+        }
+        @keyframes modalIn { from { transform: scale(0.8); opacity: 0; } to { transform: scale(1); opacity: 1; } }
+        .modal-close { position: absolute; top: 20px; right: 20px; font-size: 1.5rem; cursor: pointer; color: #888; }
+        .dl-list-item {
+            display: flex; justify-content: space-between; align-items: center;
+            padding: 15px; border-bottom: 1px solid var(--border-color);
+        }
+        .dl-list-item:last-child { border: none; }
 
         @media (max-width: 900px) {
             .watch-container { grid-template-columns: 1fr; padding: 0 15px; }
@@ -198,6 +252,24 @@
         </div>
     </div>
 
+    <div id="dl-modal" class="modal-overlay">
+        <div class="modal-content">
+            <i class="fas fa-times modal-close" onclick="closeModal()"></i>
+            <h2 style="margin-top:0;"><i class="fas fa-download" style="margin-right:10px; color:var(--primary-color);"></i>ダウンロード</h2>
+            <div id="dl-list">
+                {% for stream in streamUrls %}
+                <div class="dl-list-item">
+                    <div>
+                        <strong>{{ stream.resolution }}</strong> 
+                        <span style="color:#888; font-size:0.8rem; margin-left:5px;">({{ stream.format }})</span>
+                    </div>
+                    <a href="{{ stream.url }}" download class="quality-btn" style="text-decoration:none;">保存</a>
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+    </div>
+
     <main class="watch-container">
         <div class="video-section">
             <div id="player-wrapper">
@@ -211,12 +283,10 @@
 
             <div class="video-details">
                 <h1 class="video-title-watch">{{ video_title }}</h1>
-
                 <div class="stats-bar">
                     <span><i class="fas fa-eye"></i> {{ view_count }} 回視聴</span>
                     <span><i class="fas fa-thumbs-up"></i> {{ like_count }}</span>
                 </div>
-                
                 <div class="quality-selector">
                     <span style="font-size: 0.8rem; color: #888;">画質を選択:</span>
                     <select class="select-styled" onchange="changeQuality(this.value)">
@@ -228,7 +298,6 @@
                         {% endfor %}
                     </select>
                 </div>
-
                 <div class="channel-info">
                     <img src="{{ author_icon }}" alt="icon">
                     <div>
@@ -240,9 +309,7 @@
 
             <div class="description-card">
                 <h3 style="margin-top:0; font-size: 1.1rem;"><i class="fas fa-align-left" style="margin-right:8px; color:var(--primary-color);"></i>概要欄</h3>
-                <div class="description-box">
-                    {{ description | safe }}
-                </div>
+                <div class="description-box">{{ description | safe }}</div>
             </div>
 
             <div class="comment-section">
@@ -272,6 +339,16 @@
                 </div>
             </a>
             {% endfor %}
+
+            <div class="info-card">
+                <h3><i class="fas fa-info-circle" style="margin-right:8px; color:var(--primary-color);"></i>この動画について</h3>
+                <div class="info-buttons">
+                    <button class="info-btn" onclick="openModal()"><i class="fas fa-download"></i>保存</button>
+                    <a href="https://www.youtube.com/watch?v={{ videoid }}" target="_blank" class="info-btn"><i class="fab fa-youtube"></i>本家へ</a>
+                    <button class="info-btn" onclick="copyId()"><i class="fas fa-fingerprint"></i>ID保存</button>
+                    <a href="/thumbnail?v={{ videoid }}" download="{{ videoid }}.jpg" class="info-btn"><i class="fas fa-image"></i>サムネ保存</a>
+                </div>
+            </div>
         </div>
     </main>
 
@@ -280,23 +357,45 @@
         const audio = document.getElementById('audio-sync');
         const loader = document.getElementById('loader');
 
-        // 読み込み開始2秒後に再読み込みする機能 (初回のみ)
-        window.addEventListener('load', () => {
-            if (!sessionStorage.getItem('reloaded_{{ videoid }}')) {
-                setTimeout(() => {
-                    sessionStorage.setItem('reloaded_{{ videoid }}', 'true');
-                    location.reload();
-                }, 2000);
+        // 動画専用の再読み込みロジック
+        function reloadVideoSource() {
+            const currentTime = video.currentTime;
+            const wasPlaying = !video.paused;
+            video.load();
+            video.currentTime = currentTime;
+            if (wasPlaying) video.play().catch(() => {});
+            showNotify("動画ソースを再接続しました");
+        }
+
+        // 監視タイマー: 0秒で止まっている、または再生ボタン後も待ち続ける場合
+        let loadStuckTimer = null;
+        video.addEventListener('play', () => {
+            loadStuckTimer = setTimeout(() => {
+                if (video.currentTime === 0 && video.readyState < 3) {
+                    reloadVideoSource();
+                }
+            }, 5000);
+        });
+
+        video.addEventListener('waiting', () => { 
+            loader.style.display = 'flex';
+            if (!loadStuckTimer) {
+                loadStuckTimer = setTimeout(() => {
+                    if (video.paused === false) reloadVideoSource();
+                }, 8000);
             }
         });
 
-        video.addEventListener('waiting', () => { loader.style.display = 'flex'; });
-        video.addEventListener('playing', () => { loader.style.display = 'none'; });
-        video.addEventListener('canplay', () => { loader.style.display = 'none'; });
+        video.addEventListener('playing', () => { 
+            loader.style.display = 'none'; 
+            clearTimeout(loadStuckTimer);
+            loadStuckTimer = null;
+        });
 
         video.addEventListener('error', () => {
             loader.style.display = 'none';
-            showNotify("動画の読み込みに失敗しました。", true);
+            showNotify("読み込みエラー。再試行中...", true);
+            setTimeout(reloadVideoSource, 1000);
         });
 
         // 音声同期ロジック
@@ -319,7 +418,7 @@
                 alertIcon.className = "fas fa-info-circle";
                 alertIcon.style.color = "var(--primary-color)";
             }
-            $(alertBox).fadeIn(300).delay(3000).fadeOut(500);
+            $(alertBox).stop(true, true).fadeIn(300).delay(3000).fadeOut(500);
         }
 
         $('#searchbox').autocomplete({
@@ -328,17 +427,18 @@
                     response(data);
                 });
             },
-            delay: 300
+            delay: 300,
+            open: function() {
+                $('.ui-autocomplete').hide().fadeIn(200);
+            }
         });
 
         function changeQuality(url) {
             const selectedOption = event.target.options[event.target.selectedIndex];
             const audioUrl = selectedOption.getAttribute('data-audio');
-            
             const currentTime = video.currentTime;
             const isPaused = video.paused;
             loader.style.display = 'flex';
-            
             video.src = url;
             if(audioUrl) {
                 audio.src = audioUrl;
@@ -346,12 +446,24 @@
             } else {
                 audio.src = "";
             }
-
             video.currentTime = currentTime;
-            if (!isPaused) {
-                video.play();
-            }
+            if (!isPaused) video.play().catch(() => {});
             showNotify("画質を切り替えました");
+        }
+
+        // 新設関数の追加
+        function openModal() { document.getElementById('dl-modal').style.display = 'flex'; }
+        function closeModal() { document.getElementById('dl-modal').style.display = 'none'; }
+        window.onclick = function(event) {
+            const modal = document.getElementById('dl-modal');
+            if (event.target == modal) closeModal();
+        }
+
+        function copyId() {
+            const id = "{{ videoid }}";
+            navigator.clipboard.writeText(id).then(() => {
+                showNotify("動画IDをコピーしました");
+            });
         }
     </script>
 </body>
