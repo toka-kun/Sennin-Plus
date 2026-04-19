@@ -136,36 +136,44 @@
                     <a href="/watch?v={{ result['videoId'] or result['id'] }}" class="video-card">
                         <div class="thumbnail-box">
                             <img class="thumbnail" loading="lazy" src="{% if proxy == 'True' %}/thumbnail?v={{ result['videoId'] or result['id'] }}{% else %}http://googleusercontent.com/youtube.com/vi/{{ result['videoId'] or result['id'] }}/0.jpg{% endif %}" onerror="this.src='/thumbnail?v={{ result['videoId'] or result['id'] }}';">
-                            <p class="length-tag">{{ result["length"] or result["lengthText"] }}</p>
+                            <p class="length-tag">{{ result["length"] or result["lengthText"] or result["length_text"] }}</p>
                         </div>
                         <div class="video-info">
-                            <div class="author-icon" style="background-image: url('/thumbnail?v={{ result['videoId'] or result['id'] }}');"></div>
+                            {% set thumb = "" %}
+                            {% if result["authorThumbnails"] %}
+                                {% set thumb = result["authorThumbnails"][-1]["url"] %}
+                            {% endif %}
+                            <div class="author-icon" style="background-image: url('{{ thumb }}');"></div>
                             <div>
                                 <div class="video-title">{{ result['title'] }}</div>
                                 <div class="video-meta">
                                     <strong>{{ result["author"] }}</strong><br>
-                                    {{ result["view_count_text"] or result["viewCountText"] }} • {{ result["published"] or result["publishedText"] }}
+                                    {{ result["viewCountText"] or result["view_count_text"] }} • {{ result["publishedText"] or result["published"] }}
                                 </div>
                             </div>
                         </div>
                     </a>
 
                     {% elif result["type"] == "channel" %}
-                    <a href="/channel/{{ result['id'] or result['authorId'] }}" class="video-card" style="align-items: center; text-align: center; padding: 20px 0;">
-                        <img loading="lazy" style="width: 50%; border-radius: 50%; aspect-ratio: 1/1; object-fit: cover;" src="{{ result['thumbnail'] or result['authorThumbnails'][-1]['url'] }}">
+                    <a href="/channel/{{ result['authorId'] or result['id'] }}" class="video-card" style="align-items: center; text-align: center; padding: 20px 0;">
+                        {% set chan_thumb = "" %}
+                        {% if result["authorThumbnails"] %}
+                            {% set chan_thumb = result["authorThumbnails"][-1]["url"] %}
+                        {% endif %}
+                        <img loading="lazy" style="width: 50%; border-radius: 50%; aspect-ratio: 1/1; object-fit: cover;" src="{{ chan_thumb }}">
                         <div class="video-info">
                             <div style="width: 100%;">
                                 <div class="video-title" style="-webkit-line-clamp: 1;">{{ result["author"] }}</div>
-                                <div class="video-meta">チャンネル</div>
+                                <div class="video-meta">チャンネル • {{ result["subCountText"] or result["subscriberCount"] }}</div>
                             </div>
                         </div>
                     </a>
 
                     {% elif result["type"] == "playlist" %}
-                    <a href="/playlist?list={{ result['id'] or result['playlistId'] }}" class="video-card">
+                    <a href="/playlist?list={{ result['playlistId'] or result['id'] }}" class="video-card">
                         <div class="thumbnail-box">
-                            <img loading="lazy" class="thumbnail" src="{{ result['thumbnail'] or result['playlistThumbnail'] }}">
-                            <p class="length-tag">{{ result["count"] or result["videoCount"] }}個の動画</p>
+                            <img loading="lazy" class="thumbnail" src="{{ result['playlistThumbnail'] or result['thumbnail'] or (result['videos'][0]['videoId'] if result['videos'] else '') }}">
+                            <p class="length-tag">{{ result["videoCount"] or result["count"] }}個の動画</p>
                         </div>
                         <div class="video-info">
                             <div style="width: 100%;">
@@ -186,7 +194,7 @@
         {% endif %}
 
         <div style="text-align:right; margin-top: 40px; padding: 20px;">
-            <a href="{{ next }}" style="text-decoration: none; color: var(--primary-color); font-weight: bold;">次のページ ></a>
+            <a href="/search?q={{ word }}&page={{ (request.query_params.get('page', '1')|int) + 1 }}" style="text-decoration: none; color: var(--primary-color); font-weight: bold;">次のページ ></a>
         </div>
     </main>
 
