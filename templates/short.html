@@ -1,0 +1,327 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>{{ video_title }} - Shorts</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;700&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --bg-black: #000000;
+            --text-white: #ffffff;
+            --glass-bg: rgba(0, 0, 0, 0.6);
+            --overlay-bg: rgba(0, 0, 0, 0.9);
+            --menu-bg: #282828;
+        }
+
+        body, html {
+            margin: 0; padding: 0; width: 100%; height: 100%;
+            background-color: var(--bg-black);
+            font-family: 'Noto Sans JP', sans-serif;
+            overflow: hidden; color: var(--text-white);
+        }
+
+        /* --- メインコンテナ --- */
+        .shorts-container {
+            position: relative; width: 100%; height: 100dvh;
+            display: flex; justify-content: center; align-items: center;
+        }
+
+        /* --- ビデオエリア --- */
+        .video-wrapper {
+            position: relative; width: 100%; height: 100%;
+            display: flex; justify-content: center; align-items: center;
+            background: #000;
+        }
+
+        video {
+            width: 100%; height: 100%; object-fit: contain;
+        }
+
+        /* --- 右側アクションボタン --- */
+        .side-buttons {
+            position: absolute; right: 10px; bottom: 100px;
+            display: flex; flex-direction: column; align-items: center; gap: 20px;
+            z-index: 10;
+        }
+
+        .action-item {
+            display: flex; flex-direction: column; align-items: center; cursor: pointer;
+        }
+
+        .icon-circle {
+            width: 45px; height: 45px; border-radius: 50%;
+            background: rgba(40, 40, 40, 0.6);
+            display: flex; justify-content: center; align-items: center;
+            font-size: 22px; margin-bottom: 5px; transition: 0.2s;
+        }
+
+        .icon-circle:active { transform: scale(0.9); background: rgba(80, 80, 80, 0.8); }
+        .action-item span { font-size: 12px; font-weight: bold; }
+
+        /* --- 下部情報エリア --- */
+        .bottom-info {
+            position: absolute; bottom: 0; left: 0; width: 100%;
+            padding: 20px 15px 40px;
+            background: linear-gradient(transparent, rgba(0,0,0,0.8));
+            z-index: 5; pointer-events: none;
+        }
+
+        .info-content { pointer-events: auto; }
+
+        .author-row {
+            display: flex; align-items: center; gap: 10px; margin-bottom: 12px;
+        }
+
+        .author-name { font-weight: 700; font-size: 16px; text-shadow: 1px 1px 2px rgba(0,0,0,0.5); }
+
+        .sub-btn {
+            background: #fff; color: #000; padding: 6px 15px;
+            border-radius: 20px; font-size: 12px; font-weight: bold; border: none;
+        }
+
+        .video-title-trigger {
+            font-size: 15px; line-height: 1.4; max-width: 80%;
+            display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical;
+            overflow: hidden; cursor: pointer; text-shadow: 1px 1px 2px rgba(0,0,0,0.5);
+        }
+
+        /* --- 概要・コメント（ボトムシート） --- */
+        .description-sheet {
+            position: fixed; bottom: -100%; left: 0; width: 100%; height: 70%;
+            background: var(--overlay-bg); border-top-left-radius: 20px; border-top-right-radius: 20px;
+            z-index: 100; transition: bottom 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            backdrop-filter: blur(20px); padding: 20px; box-sizing: border-box;
+            display: flex; flex-direction: column;
+        }
+
+        .description-sheet.active { bottom: 0; }
+
+        .sheet-header {
+            display: flex; justify-content: space-between; align-items: center;
+            padding-bottom: 15px; border-bottom: 1px solid rgba(255,255,255,0.1);
+            margin-bottom: 15px;
+            flex-shrink: 0;
+        }
+
+        .sheet-handle {
+            width: 40px; height: 4px; background: rgba(255,255,255,0.3);
+            border-radius: 2px; position: absolute; top: 10px; left: 50%; transform: translateX(-50%);
+        }
+
+        .sheet-tabs {
+            display: flex; gap: 20px; margin-bottom: 15px;
+        }
+
+        .tab {
+            font-size: 14px; font-weight: bold; color: #888; cursor: pointer; padding-bottom: 5px;
+        }
+
+        .tab.active { color: #fff; border-bottom: 2px solid #fff; }
+
+        .sheet-content {
+            overflow-y: auto; flex-grow: 1; font-size: 14px; line-height: 1.6;
+        }
+
+        .comment-item {
+            display: flex; gap: 12px; margin-bottom: 20px;
+        }
+
+        .comment-author-icon { width: 32px; height: 32px; border-radius: 50%; background: #444; flex-shrink: 0; }
+        .comment-main { flex-grow: 1; }
+        .comment-user { font-weight: bold; font-size: 12px; margin-bottom: 4px; color: #aaa; }
+        .comment-text { font-size: 13px; color: #eee; }
+
+        /* --- 3点ドットメニュー --- */
+        .more-menu {
+            position: fixed; bottom: -100%; left: 0; width: 100%;
+            background: var(--menu-bg); border-top-left-radius: 15px; border-top-right-radius: 15px;
+            z-index: 200; transition: bottom 0.25s ease-out; padding: 10px 0;
+        }
+        .more-menu.active { bottom: 0; }
+        .menu-item {
+            padding: 15px 20px; display: flex; align-items: center; gap: 15px;
+            cursor: pointer; transition: background 0.2s;
+        }
+        .menu-item:active { background: #444; }
+        .menu-item i { width: 20px; font-size: 18px; }
+
+        .close-btn { font-size: 20px; cursor: pointer; }
+
+        /* --- 戻るボタン --- */
+        .back-btn {
+            position: absolute; top: 20px; left: 15px; z-index: 20;
+            font-size: 20px; color: #fff; text-shadow: 0 0 5px rgba(0,0,0,0.5);
+        }
+        
+        /* メニュー用オーバーレイ */
+        #menuOverlay {
+            position: fixed; top:0; left:0; width:100%; height:100%;
+            background: rgba(0,0,0,0.5); display:none; z-index:150;
+        }
+    </style>
+</head>
+<body>
+
+    <a href="javascript:history.back()" class="back-btn"><i class="fas fa-arrow-left"></i></a>
+
+    <div class="shorts-container">
+        <div class="video-wrapper" onclick="togglePlay()">
+            <video id="shortVideo" loop autoplay playsinline>
+                <source src="{{ videourls[0] if videourls else '' }}" type="video/mp4">
+            </video>
+        </div>
+
+        <div class="side-buttons">
+            <div class="action-item">
+                <div class="icon-circle"><i class="fas fa-thumbs-up"></i></div>
+                <span>{{ like_count or '高く評価' }}</span>
+            </div>
+            <div class="action-item">
+                <div class="icon-circle"><i class="fas fa-thumbs-down"></i></div>
+                <span>低評価</span>
+            </div>
+            <div class="action-item" onclick="openSheet('comments')">
+                <div class="icon-circle"><i class="fas fa-comment-dots"></i></div>
+                <span>コメント</span>
+            </div>
+            <div class="action-item" onclick="shareVideo()">
+                <div class="icon-circle"><i class="fas fa-share"></i></div>
+                <span>共有</span>
+            </div>
+            <div class="action-item" onclick="toggleMoreMenu()">
+                <div class="icon-circle"><i class="fas fa-ellipsis-h"></i></div>
+            </div>
+        </div>
+
+        <div class="bottom-info">
+            <div class="info-content">
+                <div class="author-row">
+                    <div class="author-name">@{{ author }}</div>
+                    <button class="sub-btn">チャンネル登録</button>
+                </div>
+                <div class="video-title-trigger" onclick="openSheet('description')">
+                    {{ video_title }}
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div id="descriptionSheet" class="description-sheet">
+        <div class="sheet-handle"></div>
+        <div class="sheet-header">
+            <div class="sheet-tabs">
+                <div id="tab-desc" class="tab active" onclick="switchTab('description')">説明</div>
+                <div id="tab-comm" class="tab" onclick="switchTab('comments')">コメント</div>
+            </div>
+            <div class="close-btn" onclick="closeSheet()"><i class="fas fa-times"></i></div>
+        </div>
+        
+        <div id="content-description" class="sheet-content">
+            <p style="font-weight: bold; margin-bottom: 10px;">{{ view_count }} 回視聴</p>
+            <div id="desc-text">{{ description | safe }}</div>
+        </div>
+
+        <div id="content-comments" class="sheet-content" style="display: none;">
+            {% for comment in comments %}
+            <div class="comment-item">
+                <div class="comment-author-icon"><img src="{{ comment.authorThumbnails[-1].url if comment.authorThumbnails else '' }}" style="width:100%; border-radius:50%;"></div>
+                <div class="comment-main">
+                    <div class="comment-user">{{ comment.author }} • {{ comment.publishedText }}</div>
+                    <div class="comment-text">{{ comment.contentHtml | safe }}</div>
+                </div>
+            </div>
+            {% else %}
+            <p style="text-align: center; color: #888; margin-top: 50px;">コメントがありません。</p>
+            {% endfor %}
+        </div>
+    </div>
+
+    <div id="menuOverlay" onclick="toggleMoreMenu()"></div>
+    <div id="moreMenu" class="more-menu">
+        <div class="menu-item" onclick="copyVideoId('{{ videoid }}')">
+            <i class="fas fa-fingerprint"></i>
+            <span>動画IDをコピー</span>
+        </div>
+        <div class="menu-item" onclick="window.open('{{ videourls[0] }}', '_blank')">
+            <i class="fas fa-download"></i>
+            <span>動画を保存 (ブラウザ再生)</span>
+        </div>
+        <div class="menu-item" onclick="window.open('https://www.youtube.com/shorts/{{ videoid }}', '_blank')">
+            <i class="fab fa-youtube"></i>
+            <span>YouTube本家で開く</span>
+        </div>
+        <div class="menu-item" onclick="toggleMoreMenu()" style="border-top: 1px solid #444;">
+            <i class="fas fa-times"></i>
+            <span>キャンセル</span>
+        </div>
+    </div>
+
+    <script>
+        const video = document.getElementById('shortVideo');
+        const sheet = document.getElementById('descriptionSheet');
+        const menu = document.getElementById('moreMenu');
+        const overlay = document.getElementById('menuOverlay');
+
+        function togglePlay() {
+            if (video.paused) { video.play(); } else { video.pause(); }
+        }
+
+        // シート管理
+        function openSheet(targetTab) {
+            sheet.classList.add('active');
+            switchTab(targetTab);
+        }
+        function closeSheet() { sheet.classList.remove('active'); }
+
+        function switchTab(tab) {
+            const descContent = document.getElementById('content-description');
+            const commContent = document.getElementById('content-comments');
+            const descTab = document.getElementById('tab-desc');
+            const commTab = document.getElementById('tab-comm');
+
+            if (tab === 'description') {
+                descContent.style.display = 'block';
+                commContent.style.display = 'none';
+                descTab.classList.add('active');
+                commTab.classList.remove('active');
+            } else {
+                descContent.style.display = 'none';
+                commContent.style.display = 'block';
+                commTab.classList.add('active');
+                descTab.classList.remove('active');
+            }
+        }
+
+        // 共有機能
+        async function shareVideo() {
+            if (navigator.share) {
+                try {
+                    await navigator.share({
+                        title: '{{ video_title }}',
+                        url: window.location.href
+                    });
+                } catch (err) { console.log('Share failed', err); }
+            } else {
+                alert('このブラウザは共有機能に対応していません。URL: ' + window.location.href);
+            }
+        }
+
+        // 3点メニュー
+        function toggleMoreMenu() {
+            menu.classList.toggle('active');
+            overlay.style.display = menu.classList.contains('active') ? 'block' : 'none';
+        }
+
+        function copyVideoId(id) {
+            navigator.clipboard.writeText(id).then(() => {
+                alert('動画IDをコピーしました: ' + id);
+                toggleMoreMenu();
+            });
+        }
+
+        video.onerror = function() { console.error("Video loading failed."); };
+    </script>
+</body>
+</html>
