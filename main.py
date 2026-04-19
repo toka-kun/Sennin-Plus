@@ -104,6 +104,46 @@ def request_api(path, api_urls):
     return json.dumps({"error": "Timeout or No instances available"})
 
 # --- [DATA FETCHING] ---
+def formatSearchData(data_dict):
+    failed = "不明"
+    try:
+        if data_dict["type"] == "video":
+            return {
+                "type": "video",
+                "title": data_dict["title"] if 'title' in data_dict else failed,
+                "id": data_dict["videoId"] if 'videoId' in data_dict else failed,
+                "authorId": data_dict["authorId"] if 'authorId' in data_dict else failed,
+                "author": data_dict["author"] if 'author' in data_dict else failed,
+                "published": data_dict["publishedText"] if 'publishedText' in data_dict else failed,
+                "length": str(datetime.timedelta(seconds=data_dict["lengthSeconds"])) if 'lengthSeconds' in data_dict else "0:00",
+                "view_count_text": data_dict.get("viewCountText", "0回視聴")
+            }
+        
+        elif data_dict["type"] == "playlist":
+            return {
+                "type": "playlist",
+                "title": data_dict["title"] if 'title' in data_dict else failed,
+                "id": data_dict['playlistId'] if 'playlistId' in data_dict else failed,
+                "thumbnail": data_dict["playlistThumbnail"] if 'playlistThumbnail' in data_dict else "",
+                "count": data_dict["videoCount"] if 'videoCount' in data_dict else 0,
+                "author": data_dict.get("author", failed)
+            }
+        
+        elif "authorThumbnails" in data_dict and data_dict["authorThumbnails"]:
+            thumbnail_url = data_dict["authorThumbnails"][-1]["url"]
+            if not thumbnail_url.startswith("https"):
+                thumbnail_url = "https:" + thumbnail_url
+            
+            return {
+                "type": "channel",
+                "author": data_dict["author"] if 'author' in data_dict else failed,
+                "id": data_dict["authorId"] if 'authorId' in data_dict else failed,
+                "thumbnail": thumbnail_url
+            }
+    except:
+        pass
+    return None
+
 def get_video_data(videoid):
     raw = request_api(f"/videos/{urllib.parse.quote(videoid)}", invidious_api.video)
     t = json.loads(raw)
@@ -169,18 +209,20 @@ def home(request: Request, yuki: Union[str, None] = Cookie(None)):
 @app.get('/watch', response_class=HTMLResponse)
 def watch_video(v: str, request: Request, yuki: Union[str, None] = Cookie(None)):
     if not check_auth(yuki): return RedirectResponse("/")
-    data = get_video_data(v)
+    data_list = get_video_data(v)
+    video_info = data_list
+    recommended = data_list
     context = {
         "videoid": v,
-        "video_title": data['title'],
-        "videourls": data['video_urls'],
-        "streamUrls": data['streamUrls'],
-        "description": data['description_html'],
-        "author": data['author'],
-        "author_icon": data['author_thumbnails_url'],
-        "subscribers_count": data['subscribers_count'],
-        "view_count": data['view_count'],
-        "recommended_videos": data
+        "video_title": video_info['title'],
+        "videourls": video_info['video_urls'],
+        "streamUrls": video_info['streamUrls'],
+        "description": video_info['description_html'],
+        "author": video_info['author'],
+        "author_icon": video_info['author_thumbnails_url'],
+        "subscribers_count": video_info['subscribers_count'],
+        "view_count": video_info['view_count'],
+        "recommended_videos": recommended
     }
     return templates.TemplateResponse(request=request, name="watch.html", context=context)
 
@@ -188,10 +230,12 @@ def watch_video(v: str, request: Request, yuki: Union[str, None] = Cookie(None))
 def search(q: str, request: Request, page: int = 1, yuki: Union[str, None] = Cookie(None)):
     if not check_auth(yuki): return RedirectResponse("/")
     raw = request_api(f"/search?q={urllib.parse.quote(q)}&page={page}&hl=jp", invidious_api.search)
-    results = json.loads(raw)
+    datas_dict = json.loads(raw)
     
-    # 修正箇所: resultsがリストでない（エラー辞書などの）場合、空リストにする
-    if not isinstance(results, list):
+    # 修正箇所: 整形関数を通してリストを作成
+    if isinstance(datas_dict, list):
+        results = [formatSearchData(d) for d in datas_dict if formatSearchData(d) is not None]
+    else:
         results = []
         
     context = {"results": results, "word": q}
@@ -216,3 +260,4 @@ def view_bbs(request: Request):
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run(app, host="0.0.0.0", port=8000)
+
