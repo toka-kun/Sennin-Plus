@@ -24,7 +24,8 @@ class SimpleCache:
         def decorator(func):
             @wraps(func)
             def wrapper(*args, **kwargs):
-                key = f"{func.__name__}:{args}:{kwargs}"
+                # 修正: unhashable type (dict等) を回避するため str() で文字列化
+                key = f"{func.__name__}:{str(args)}:{str(kwargs)}"
                 now = time.time()
                 if key in self.store and (now - self.store[key]['time'] < seconds):
                     return self.store[key]['data']
@@ -100,7 +101,6 @@ def request_api(path, api_urls):
             rotate_list(api_urls, api)
     return json.dumps({"error": "Timeout or No instances available"})
 
-# HTMLの検索ロジックに完全対応させるための内部APIリクエスト関数
 async def request_invidious_api(path):
     raw = request_api(path, invidious_api.search)
     datas_dict = json.loads(raw)
@@ -179,7 +179,6 @@ app.add_middleware(GZipMiddleware, minimum_size=1000)
 templates = Jinja2Templates(directory="templates")
 
 async def get_current_user(request: Request):
-    # USE_AUTHがFalseの場合は認証チェックをスキップ
     if not USE_AUTH: return {"user": "guest"}
     user = request.cookies.get("yuki")
     if user != "True":
@@ -216,18 +215,20 @@ def watch_video(v: str, request: Request, yuki: Union[str, None] = Cookie(None))
     }
     return templates.TemplateResponse(request=request, name="watch.html", context=context)
 
-# 1枚目のロジックに基づき、HTML側の変数「word」に完全対応させた検索エンドポイント
-@app.get("/search")
+# 1枚目のロジックに基づき、HTML側の変数「word」や「page」に完全対応させた検索エンドポイント
+@app.get("/search", response_class=HTMLResponse)
 async def search(
     request: Request, 
     q: str = "", 
     page: int = 1,
-    user: dict = Depends(get_current_user)
+    yuki: Union[str, None] = Cookie(None)
 ):
+    if not check_auth(yuki):
+        return RedirectResponse(url="/", status_code=HTTP_303_SEE_OTHER)
+
     if not q:
         return RedirectResponse(url="/", status_code=HTTP_303_SEE_OTHER)
 
-    # request_invidious_api側で動画のみにフィルタリングされたリストが返る
     results = await request_invidious_api(f"/search?q={urllib.parse.quote(q)}&page={page}&hl=jp") or []
     theme = request.cookies.get("theme", "dark")
 
@@ -236,8 +237,8 @@ async def search(
         {
             "request": request, 
             "results": results, 
-            "query": q,      # ロジック用
-            "word": q,       # HTMLテンプレート内の {{ word }} 用
+            "query": q,      
+            "word": q,       
             "theme": theme
         }
     )
