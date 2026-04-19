@@ -192,6 +192,40 @@ async def watch(request: Request, v: str = Query(...)):
     except Exception as e:
         return HTMLResponse(content=f"Error: {str(e)}", status_code=500)
 
+@app.get("/playlist", response_class=HTMLResponse)
+async def playlist(request: Request, list: str = Query(...)):
+    try:
+        data = await fetch_invidious(f"/playlists/{list}")
+        return templates.TemplateResponse("playlist.html", {
+            "request": request,
+            "title": data.get("title"),
+            "playlistId": list,
+            "author": data.get("author"),
+            "authorId": data.get("authorId"),
+            "videos": data.get("videos", []),
+            "description": data.get("descriptionHtml", "")
+        })
+    except Exception as e:
+        return HTMLResponse(content=f"Error: {str(e)}", status_code=500)
+
+@app.get("/channel/{ucid}", response_class=HTMLResponse)
+async def channel(request: Request, ucid: str, sort_by: str = "newest"):
+    try:
+        # チャンネル情報と動画一覧を取得
+        channel_data = await fetch_invidious(f"/channels/{ucid}", {"sort_by": sort_by})
+        return templates.TemplateResponse("channel.html", {
+            "request": request,
+            "ucid": ucid,
+            "author": channel_data.get("author"),
+            "author_icon": channel_data.get("authorThumbnails", [{"url": ""}])[-1]["url"],
+            "sub_count": channel_data.get("subCountText", "非公開"),
+            "description": channel_data.get("descriptionHtml", ""),
+            "videos": channel_data.get("latestVideos", []),
+            "sort_by": sort_by
+        })
+    except Exception as e:
+        return HTMLResponse(content=f"Error: {str(e)}", status_code=500)
+
 @app.get("/suggest")
 async def suggest(keyword: str):
     instances = list(INVIDIOUS_INSTANCES)
