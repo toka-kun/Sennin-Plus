@@ -8,14 +8,14 @@ import os
 import ast
 from typing import Union, Dict, Any
 from functools import wraps
-from fastapi import FastAPI, Response, Cookie, Request, Form
+from fastapi import FastAPI, Response, Cookie, Request, Form, Depends, HTTPException
 from fastapi.responses import HTMLResponse, PlainTextResponse, RedirectResponse
 from fastapi.middleware.gzip import GZipMiddleware
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
+from starlette.status import HTTP_303_SEE_OTHER
 
 # --- [INTEGRATED CACHE SYSTEM] ---
-# cache.py の機能を統合した簡易デコレータ
 class SimpleCache:
     def __init__(self):
         self.store: Dict[str, Dict[str, Any]] = {}
@@ -40,7 +40,6 @@ cache = SimpleCache()
 MAX_API_WAIT_TIME = (1.5, 1)
 MAX_TOTAL_TIME = 10
 VERSION = "Plus-1.0.0"
-# yukiverifyを無効化するため、常にTrueを返すように変更
 USE_AUTH = False 
 
 USER_AGENTS = [
@@ -56,11 +55,9 @@ def get_random_headers():
 class InvidiousAPI:
     def __init__(self):
         try:
-            # 外部のリポジトリから有効なインスタンスリストを取得
             res = requests.get('https://raw.githubusercontent.com/yuto1106110/invidious-instance-dieu-eviter/refs/heads/main/data/valid.json', timeout=5)
             self.all = json.loads(res.text)
         except:
-            # フォールバック（取得失敗時）
             self.all = {"video": ["https://invidious.f5.si/"], "search": ["https://invidious.f5.si"], "channel": ["https://inv.tux.pizza/"], "playlist": ["https://invidious.f5.si/"], "comments": ["https://invidious.f5.si/"]}
         
         self.video = self.all.get('video', [])
@@ -103,11 +100,18 @@ def request_api(path, api_urls):
             rotate_list(api_urls, api)
     return json.dumps({"error": "Timeout or No instances available"})
 
+# HTMLの検索ロジックに完全対応させるための内部APIリクエスト関数
+async def request_invidious_api(path):
+    raw = request_api(path, invidious_api.search)
+    datas_dict = json.loads(raw)
+    if isinstance(datas_dict, list):
+        return [formatSearchData(d) for d in datas_dict if formatSearchData(d) is not None]
+    return []
+
 # --- [DATA FETCHING] ---
 def formatSearchData(data_dict):
     failed = "不明"
     try:
-        # 「video」タイプのみを処理し、それ以外はNoneを返す
         if data_dict.get("type") == "video":
             return {
                 "type": "video",
@@ -174,6 +178,14 @@ app.add_middleware(GZipMiddleware, minimum_size=1000)
 
 templates = Jinja2Templates(directory="templates")
 
+async def get_current_user(request: Request):
+    # USE_AUTHがFalseの場合は認証チェックをスキップ
+    if not USE_AUTH: return {"user": "guest"}
+    user = request.cookies.get("yuki")
+    if user != "True":
+        raise HTTPException(status_code=401, detail="Not authenticated")
+    return {"user": "authorized"}
+
 def check_auth(yuki_cookie):
     if not USE_AUTH: return True
     return yuki_cookie == "True"
@@ -181,7 +193,6 @@ def check_auth(yuki_cookie):
 @app.get("/", response_class=HTMLResponse)
 def home(request: Request, yuki: Union[str, None] = Cookie(None)):
     if check_auth(yuki):
-        # 明示的に辞書をコンテキストとして渡す
         return templates.TemplateResponse(request=request, name="home.html", context={})
     return RedirectResponse("/genesis")
 
@@ -205,20 +216,31 @@ def watch_video(v: str, request: Request, yuki: Union[str, None] = Cookie(None))
     }
     return templates.TemplateResponse(request=request, name="watch.html", context=context)
 
-@app.get("/search", response_class=HTMLResponse)
-def search(q: str, request: Request, page: int = 1, yuki: Union[str, None] = Cookie(None)):
-    if not check_auth(yuki): return RedirectResponse("/")
-    raw = request_api(f"/search?q={urllib.parse.quote(q)}&page={page}&hl=jp", invidious_api.search)
-    datas_dict = json.loads(raw)
-    
-    # 整形関数を通して「動画のみ」のリストを作成
-    if isinstance(datas_dict, list):
-        results = [formatSearchData(d) for d in datas_dict if formatSearchData(d) is not None]
-    else:
-        results = []
-        
-    context = {"results": results, "word": q}
-    return templates.TemplateResponse(request=request, name="search.html", context=context)
+# 1枚目のロジックに基づき、HTML側の変数「word」に完全対応させた検索エンドポイント
+@app.get("/search")
+async def search(
+    request: Request, 
+    q: str = "", 
+    page: int = 1,
+    user: dict = Depends(get_current_user)
+):
+    if not q:
+        return RedirectResponse(url="/", status_code=HTTP_303_SEE_OTHER)
+
+    # request_invidious_api側で動画のみにフィルタリングされたリストが返る
+    results = await request_invidious_api(f"/search?q={urllib.parse.quote(q)}&page={page}&hl=jp") or []
+    theme = request.cookies.get("theme", "dark")
+
+    return templates.TemplateResponse(
+        "search.html", 
+        {
+            "request": request, 
+            "results": results, 
+            "query": q,      # ロジック用
+            "word": q,       # HTMLテンプレート内の {{ word }} 用
+            "theme": theme
+        }
+    )
 
 @app.get("/thumbnail")
 def thumbnail(v: str):
