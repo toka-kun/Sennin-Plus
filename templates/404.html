@@ -1,0 +1,159 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>404 - ページが見つかりません</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;700&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --primary-color: #007bff;
+            --bg-light: #fdfdfd;
+            --text-dark: #333333;
+            --gray-logo: #555555;
+            --glass-bg: rgba(255, 255, 255, 0.85);
+            --card-bg: #ffffff;
+            --border-color: #e5e5e5;
+        }
+
+        @media (prefers-color-scheme: dark) {
+            :root {
+                --bg-light: #121212;
+                --text-dark: #e0e0e0;
+                --glass-bg: rgba(30, 30, 30, 0.85);
+                --gray-logo: #bbbbbb;
+                --card-bg: #252525;
+                --border-color: #333;
+            }
+        }
+
+        body {
+            font-family: 'Noto Sans JP', sans-serif;
+            margin: 0;
+            background-color: var(--bg-light);
+            color: var(--text-dark);
+            display: flex;
+            flex-direction: column;
+            min-height: 100vh;
+        }
+
+        /* 共通トップバー */
+        #top-bar {
+            position: fixed; top: 0; left: 0; width: 100%;
+            background-color: var(--glass-bg);
+            backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px);
+            z-index: 1000; padding: 12px 25px;
+            display: flex; align-items: center; justify-content: space-between;
+            box-shadow: 0 2px 15px rgba(0, 0, 0, 0.05);
+            box-sizing: border-box;
+        }
+
+        .logo-small h2 {
+            font-size: 1.5rem; color: var(--gray-logo); margin: 0; cursor: pointer;
+            text-decoration: none;
+        }
+
+        .logo-small sup { color: var(--primary-color); font-size: 0.6em; }
+
+        /* 共通検索バー */
+        .search-container {
+            position: relative; flex: 0 1 600px; margin: 0 20px;
+        }
+
+        .search-container input {
+            width: 100%; padding: 12px 20px 12px 45px;
+            border: 1px solid var(--border-color); border-radius: 50px;
+            background: var(--card-bg); color: var(--text-dark);
+            outline: none; transition: all 0.3s;
+            box-sizing: border-box;
+        }
+
+        .search-container input:focus {
+            border-color: var(--primary-color);
+            box-shadow: 0 0 8px rgba(0, 123, 255, 0.2);
+        }
+
+        .search-container i {
+            position: absolute; left: 18px; top: 50%; transform: translateY(-50%);
+            color: #aaa;
+        }
+
+        /* 404 コンテンツ */
+        .error-content {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+            text-align: center;
+            margin-top: 60px; /* トップバー分 */
+        }
+
+        .error-code {
+            font-size: 8rem;
+            font-weight: 700;
+            color: var(--primary-color);
+            margin: 0;
+            line-height: 1;
+        }
+
+        .error-message {
+            font-size: 1.5rem;
+            margin: 20px 0;
+        }
+
+        .error-description {
+            color: var(--gray-logo);
+            margin-bottom: 30px;
+            max-width: 500px;
+            line-height: 1.6;
+        }
+
+        .home-btn {
+            background-color: var(--primary-color);
+            color: white;
+            padding: 12px 30px;
+            border-radius: 50px;
+            text-decoration: none;
+            font-weight: bold;
+            transition: opacity 0.3s;
+        }
+
+        .home-btn:hover {
+            opacity: 0.85;
+        }
+
+        @media (max-width: 600px) {
+            .search-container { display: none; } /* スマホでは検索バーを非表示にする例 */
+            .error-code { font-size: 5rem; }
+        }
+    </style>
+</head>
+<body>
+
+    <header id="top-bar">
+        <a href="/" class="logo-small">
+            <h2>仙人tube<sup>+</sup></h2>
+        </a>
+        <div class="search-container">
+            <form action="/search" method="GET">
+                <i class="fas fa-search"></i>
+                <input type="text" name="q" placeholder="動画を検索...">
+            </form>
+        </div>
+        <div style="width: 40px;"></div> </header>
+
+    <main class="error-content">
+        <h1 class="error-code">404</h1>
+        <p class="error-message">お探しのページは見つかりません</p>
+        <p class="error-description">
+            アクセスしようとしたページは削除されたか、URLが変更された可能性があります。<br>
+            上の検索バーから検索するか、トップページへお戻りください。
+        </p>
+        <a href="/" class="home-btn">トップページに戻る</a>
+    </main>
+
+</body>
+</html>
