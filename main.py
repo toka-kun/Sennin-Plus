@@ -378,6 +378,15 @@ async def read_status(request: Request):
     
     return templates.TemplateResponse("status.html", {"request": request, "instances": status_results})
 
+@app.get("/subscriptions", response_class=HTMLResponse)
+async def subscriptions_page(request: Request):
+    """
+    購読済みチャンネル一覧ページを表示します。
+    実際のデータ処理（LocalStorageからの取得）はフロントエンド（HTML/JS）側で行われます。
+    """
+    return templates.TemplateResponse("subscriptions.html", {"request": request})
+
+
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run(app, host="0.0.0.0", port=8000)
