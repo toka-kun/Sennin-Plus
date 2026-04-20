@@ -32,52 +32,88 @@
             overflow-x: hidden;
         }
 
-        /* --- トップバー (グラスモーフィズム) --- */
+        /* --- 改良版トップバー --- */
         #top-bar {
             position: fixed;
             top: 0;
             left: 0;
             width: 100%;
-            background-color: var(--glass-bg);
-            backdrop-filter: blur(10px);
-            -webkit-backdrop-filter: blur(10px);
+            background-color: rgba(255, 255, 255, 0.7);
+            backdrop-filter: blur(15px) saturate(180%);
+            -webkit-backdrop-filter: blur(15px) saturate(180%);
             z-index: 1000;
-            padding: 12px 25px;
+            padding: 15px 40px;
             display: flex;
             align-items: center;
             justify-content: space-between;
-            box-shadow: 0 2px 15px rgba(0, 0, 0, 0.05);
-            transition: all 0.4s cubic-bezier(0.165, 0.84, 0.44, 1);
+            box-shadow: none;
+            border-bottom: 1px solid rgba(0, 0, 0, 0.05);
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
             box-sizing: border-box;
         }
 
         #top-bar.scrolled {
-            padding: 8px 25px;
-            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1);
+            padding: 10px 40px;
+            background-color: rgba(255, 255, 255, 0.9);
+            border-bottom: 1px solid rgba(0, 0, 0, 0.1);
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.02);
+        }
+
+        #header-left {
+            display: flex;
+            align-items: center;
+            gap: 15px;
+        }
+
+        #hide-header {
+            opacity: 0.4;
+            transition: all 0.3s ease;
+            font-size: 16px !important;
+            padding: 5px !important;
+            color: var(--text-dark);
+        }
+
+        #hide-header:hover {
+            opacity: 1;
+            transform: scale(1.1);
+            color: var(--primary-color) !important;
         }
 
         #top-nav {
             display: flex;
             align-items: center;
+            gap: 12px;
         }
 
+        /* ボタンデザインのブラッシュアップ */
         #top-nav a {
             position: relative;
-            margin-left: 10px;
-            color: var(--text-dark);
+            color: #444;
             text-decoration: none;
-            font-size: 15px;
-            font-weight: 500;
-            padding: 10px 18px;
+            font-size: 13.5px;
+            font-weight: 700;
+            padding: 8px 18px;
             border-radius: 50px;
-            transition: all 0.3s ease;
-            background: transparent;
+            transition: all 0.25s ease;
+            background: rgba(0, 0, 0, 0.03);
             cursor: pointer;
+            display: flex;
+            align-items: center;
+            border: 1px solid transparent;
+        }
+
+        #top-nav a i {
+            font-size: 14px;
+            margin-right: 6px;
+            opacity: 0.8;
         }
 
         #top-nav a:hover {
             color: var(--primary-color);
-            background: rgba(0, 123, 255, 0.08);
+            background: #fff;
+            border-color: rgba(0, 123, 255, 0.2);
+            box-shadow: 0 4px 12px rgba(0, 123, 255, 0.1);
+            transform: translateY(-1px);
         }
 
         /* 追加：ヘッダー非表示・設定パネル関連のスタイル */
@@ -143,30 +179,45 @@
         }
 
         .menu-list li {
-            margin-bottom: 15px;
+            margin-bottom: 8px;
         }
 
         .menu-list a {
             display: flex;
             align-items: center;
-            padding: 12px 15px;
+            padding: 14px 18px;
             color: var(--text-dark);
             text-decoration: none;
-            border-radius: 10px;
-            transition: all 0.2s ease;
-            font-weight: 500;
+            border-radius: 12px;
+            transition: all 0.25s ease;
+            font-weight: 600;
+            background: rgba(0, 0, 0, 0.02);
+            font-size: 15px;
         }
 
         .menu-list a:hover {
-            background: rgba(0, 123, 255, 0.1);
-            color: var(--primary-color);
-            transform: translateX(5px);
+            background: var(--primary-color);
+            color: #fff;
+            transform: scale(1.02);
+            box-shadow: 0 4px 12px rgba(0, 123, 255, 0.2);
         }
 
         .menu-list i {
-            width: 25px;
-            margin-right: 10px;
+            width: 32px;
+            height: 32px;
+            margin-right: 12px;
             font-size: 18px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border-radius: 8px;
+            background: rgba(0, 0, 0, 0.04);
+            transition: all 0.25s ease;
+        }
+
+        .menu-list a:hover i {
+            background: rgba(255, 255, 255, 0.2);
+            color: #fff;
         }
 
         /* --- 検索ウィジェット中央配置 --- */
@@ -260,7 +311,7 @@
             color: var(--primary-color);
         }
 
-        /* --- カードUI (追加分) --- */
+        /* --- カードUI --- */
         .quick-links {
             display: flex;
             justify-content: center;
@@ -295,10 +346,10 @@
             font-size: 1.2em;
         }
 
-        /* --- 最新情報通知 (右上に変更) --- */
+        /* --- 最新情報通知 --- */
         .latest-info {
             position: fixed;
-            top: 85px; /* ヘッダーの下に来るように調整 */
+            top: 85px;
             right: 20px;
             width: 300px;
             background: #fff;
@@ -363,6 +414,25 @@
                 --glass-bg: rgba(30, 30, 30, 0.85);
                 --gray-logo: #bbbbbb;
             }
+            #top-bar {
+                background-color: rgba(18, 18, 18, 0.7);
+                border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+            }
+            #top-bar.scrolled {
+                background-color: rgba(18, 18, 18, 0.95);
+            }
+            #top-nav a {
+                color: #ccc;
+                background: rgba(255, 255, 255, 0.05);
+            }
+            #top-nav a:hover {
+                background: rgba(255, 255, 255, 0.1);
+                color: #fff;
+                border-color: rgba(255, 255, 255, 0.2);
+            }
+            #hide-header {
+                color: #e0e0e0;
+            }
             .searchbar input[type="search"] {
                 background-color: #252525;
                 color: #fff;
@@ -381,6 +451,8 @@
             .close-info:hover { color: #fff; }
             #settings-panel, #menu-panel { border-left: 1px solid rgba(255,255,255,0.1); }
             .settings-header { border-bottom-color: rgba(255,255,255,0.1); }
+            .menu-list a { background: rgba(255, 255, 255, 0.05); }
+            .menu-list i { background: rgba(255, 255, 255, 0.08); }
         }
 
         /* --- モバイル対応 --- */
@@ -419,6 +491,7 @@
                 width: 100%;
                 text-align: center;
                 box-sizing: border-box;
+                justify-content: center;
             }
             .latest-info {
                 width: calc(100% - 40px);
@@ -521,27 +594,27 @@
 
     <header id="top-bar">
         <div id="header-left">
-            <a id="hide-header" style="cursor:pointer; color:var(--text-dark); font-size:18px; padding:10px;"><i class="fas fa-minus-circle"></i></a>
+            <a id="hide-header" style="cursor:pointer;"><i class="fas fa-eye-slash"></i></a>
         </div> 
         <div id="hamburger"><i class="fas fa-bars"></i></div>
         <nav id="top-nav">
-            <a id="open-menu"><i class="fas fa-th-large"></i>&nbsp; メニュー</a>
-            <a id="open-settings"><i class="fas fa-cog"></i>&nbsp; 設定</a>
+            <a id="open-menu"><i class="fas fa-th-large"></i>メニュー</a>
+            <a id="open-settings"><i class="fas fa-cog"></i>設定</a>
         </nav>
     </header>
 
     <div id="menu-panel">
         <div class="settings-header">
-            <h2 style="margin:0; font-size:18px;"><i class="fas fa-th-large"></i> メニュー</h2>
+            <h2 style="margin:0; font-size:18px;"><i class="fas fa-layer-group"></i> メニュー</h2>
             <button id="close-menu" class="close-info"><i class="fas fa-times"></i></button>
         </div>
         <div class="settings-content">
             <ul class="menu-list">
-                <li><a href="/games"><i class="fas fa-gamepad"></i> ゲーム</a></li>
-                <li><a href="/subscriptions"><i class="fas fa-users"></i> 登録済みチャンネル</a></li>
-                <li><a href="/history"><i class="fas fa-history"></i> 履歴</a></li>
-                <li><a href="/tools"><i class="fas fa-tools"></i> tools</a></li>
-                <li><a href="/status"><i class="fas fa-server"></i> 稼働状況</a></li>
+                <li><a href="/games"><i class="fas fa-rocket"></i> ゲーム</a></li>
+                <li><a href="/subscriptions"><i class="fas fa-heart"></i> 登録済みチャンネル</a></li>
+                <li><a href="/history"><i class="fas fa-compass"></i> 履歴</a></li>
+                <li><a href="/tools"><i class="fas fa-wand-magic-sparkles"></i> tools</a></li>
+                <li><a href="/status"><i class="fas fa-chart-line"></i> 稼働状況</a></li>
             </ul>
         </div>
     </div>
