@@ -7,16 +7,8 @@ import asyncio
 import json
 import random
 from datetime import datetime
-from contextlib import asynccontextmanager
 
-# クライアントのライフサイクル管理（高速化のためのコネクションプール）
-@asynccontextmanager
-async def lifespan(app: FastAPI):
-    app.state.client = httpx.AsyncClient(timeout=15.0, limits=httpx.Limits(max_connections=100, max_keepalive_connections=20))
-    yield
-    await app.state.client.aclose()
-
-app = FastAPI(lifespan=lifespan)
+app = FastAPI()
 
 # テンプレートの設定
 templates = Jinja2Templates(directory="templates")
@@ -32,45 +24,18 @@ INVIDIOUS_INSTANCES = [
     'https://invidious.nerdvpn.de/',
 ]
 
-async def fetch_from_instance(client, instance, endpoint, params):
-    """個別のインスタンスを叩く補助関数"""
-    url = f"{instance.rstrip('/')}/api/v1{endpoint}"
-    response = await client.get(url, params=params)
-    response.raise_for_status()
-    data = response.json()
-    # 正しい情報かどうかの簡易チェック（JSONであり、エラーメッセージを含まないこと）
-    if isinstance(data, dict) and "error" in data:
-        raise Exception("Instance returned error message")
-    return data
-
 async def fetch_invidious(endpoint: str, params: dict = None):
-    """複数インスタンスを同時に叩き、最速の正常レスポンスを採用する"""
     instances = list(INVIDIOUS_INSTANCES)
     random.shuffle(instances)
     
-    client = app.state.client
-    tasks = [fetch_from_instance(client, instance, endpoint, params) for instance in instances]
-    
-    # 最初の一つの成功を待つ
-    done, pending = await asyncio.wait(tasks, return_when=asyncio.FIRST_COMPLETED)
-    
     last_error = None
-    for task in done:
-        try:
-            result = task.result()
-            # 完了したタスクが成功していれば、残りのタスクをキャンセルして結果を返す
-            for p in pending:
-                p.cancel()
-            return result
-        except Exception as e:
-            last_error = e
-            continue
-
-    # 最初に終わったものが失敗だった場合、残りを順次確認（または再帰的に待機）
-    if pending:
-        for fut in asyncio.as_completed(list(pending)):
+    async with httpx.AsyncClient(timeout=15.0) as client:
+        for instance in instances:
             try:
-                return await fut
+                url = f"{instance.rstrip('/')}/api/v1{endpoint}"
+                response = await client.get(url, params=params)
+                response.raise_for_status()
+                return response.json()
             except Exception as e:
                 last_error = e
                 continue
@@ -347,19 +312,25 @@ async def channel(request: Request, ucid: str, sort_by: str = "newest", tab: str
 
 @app.get("/suggest")
 async def suggest(keyword: str):
-    try:
-        return await fetch_invidious("/search/suggestions", {"q": keyword}).get("suggestions", [])
-    except:
-        return []
+    instances = list(INVIDIOUS_INSTANCES)
+    random.shuffle(instances)
+    async with httpx.AsyncClient() as client:
+        for instance in instances:
+            try:
+                resp = await client.get(f"{instance.rstrip('/')}/api/v1/search/suggestions", params={"q": keyword})
+                if resp.status_code == 200:
+                    return resp.json().get("suggestions", [])
+            except: continue
+    return []
 
 @app.get("/proxy/thumb")
 async def proxy_thumb(v: str):
     thumb_url = f"https://i.ytimg.com/vi/{v}/mqdefault.jpg"
-    client = app.state.client
-    try:
-        resp = await client.get(thumb_url)
-        return Response(content=resp.content, media_type="image/jpeg")
-    except: return Response(status_code=404)
+    async with httpx.AsyncClient() as client:
+        try:
+            resp = await client.get(thumb_url)
+            return Response(content=resp.content, media_type="image/jpeg")
+        except: return Response(status_code=404)
 
 @app.get("/thumbnail")
 async def thumbnail(v: str):
@@ -383,11 +354,29 @@ async def read_2048(request: Request):
 
 @app.get("/status", response_class=HTMLResponse)
 async def read_status(request: Request):
-    return templates.TemplateResponse("status.html", {"request": request})
-
-@app.get("/404.html", response_class=HTMLResponse)
-async def read_404(request: Request):
-    return templates.TemplateResponse("404.html", {"request": request})
+    status_results = []
+    async with httpx.AsyncClient(timeout=5.0) as client:
+        for instance in INVIDIOUS_INSTANCES:
+            start_time = datetime.now()
+            try:
+                # 統計APIを叩いて稼働状況を確認
+                resp = await client.get(f"{instance.rstrip('/')}/api/v1/stats")
+                latency = (datetime.now() - start_time).total_seconds() * 1000
+                if resp.status_code == 200:
+                    data = resp.json()
+                    status_results.append({
+                        "instance": instance,
+                        "status": "Online",
+                        "latency": f"{int(latency)}ms",
+                        "version": data.get("software", {}).get("version", "unknown"),
+                        "users": data.get("usage", {}).get("users", {}).get("total", 0)
+                    })
+                else:
+                    status_results.append({"instance": instance, "status": f"Error {resp.status_code}", "latency": "-", "version": "-", "users": "-"})
+            except Exception:
+                status_results.append({"instance": instance, "status": "Offline", "latency": "-", "version": "-", "users": "-"})
+    
+    return templates.TemplateResponse("status.html", {"request": request, "instances": status_results})
 
 if __name__ == "__main__":
     import uvicorn
