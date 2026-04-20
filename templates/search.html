@@ -220,9 +220,31 @@
         }
         .next-btn:hover { transform: scale(1.05) translateY(-3px); box-shadow: 0 12px 25px rgba(0, 123, 255, 0.4); background: #0069d9; }
         .next-btn i { font-size: 0.9rem; }
+
+        /* --- 読み込みアニメーション用スタイル追加 --- */
+        #loading-overlay {
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0, 0, 0, 0.5); backdrop-filter: blur(5px);
+            display: none; justify-content: center; align-items: center;
+            z-index: 3000;
+        }
+        .spinner {
+            width: 50px; height: 50px;
+            border: 5px solid rgba(255, 255, 255, 0.3);
+            border-top-color: #fff;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
     </style>
 </head>
 <body>
+    <div id="loading-overlay">
+        <div class="spinner"></div>
+    </div>
+
     <header id="top-bar">
         <div class="logo-small" onclick="location.href='/'"><h2>仙人Tube<sup>+</sup></h2></div>
         <form id="search-form" action="/search" method="get" class="search-container">
@@ -356,6 +378,19 @@
     </main>
 
     <script>
+        // 遷移時にローディングを表示する処理を追加
+        $(document).on('click', 'a', function(e) {
+            const href = $(this).attr('href');
+            if (href && !href.startsWith('#') && !$(this).attr('target')) {
+                $('#loading-overlay').css('display', 'flex');
+            }
+        });
+
+        // フォーム送信時にも表示
+        $('form').on('submit', function() {
+            $('#loading-overlay').css('display', 'flex');
+        });
+
         function applyFilter(filterType) {
             document.getElementById('search-type').value = filterType;
             document.getElementById('search-form').submit();
