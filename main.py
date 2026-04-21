@@ -7,21 +7,8 @@ import asyncio
 import json
 import random
 from datetime import datetime
-from contextlib import asynccontextmanager
 
-# クライアントをグローバルで管理するための設定
-class ClientManager:
-    client = None
-
-@asynccontextmanager
-async def lifespan(app: FastAPI):
-    # アプリ起動時にクライアントを作成（高速化の肝：コネクションプーリング）
-    ClientManager.client = httpx.AsyncClient(timeout=15.0, limits=httpx.Limits(max_connections=100, max_keepalive_connections=20))
-    yield
-    # アプリ終了時にクローズ
-    await ClientManager.client.aclose()
-
-app = FastAPI(lifespan=lifespan)
+app = FastAPI()
 
 # テンプレートの設定
 templates = Jinja2Templates(directory="templates")
@@ -42,24 +29,17 @@ async def fetch_invidious(endpoint: str, params: dict = None):
     random.shuffle(instances)
     
     last_error = None
-    is_timeout = False
+    async with httpx.AsyncClient(timeout=15.0) as client:
+        for instance in instances:
+            try:
+                url = f"{instance.rstrip('/')}/api/v1{endpoint}"
+                response = await client.get(url, params=params)
+                response.raise_for_status()
+                return response.json()
+            except Exception as e:
+                last_error = e
+                continue
     
-    # ClientManager.client を使用することでリクエストごとのオーバーヘッドを削減
-    for instance in instances:
-        try:
-            url = f"{instance.rstrip('/')}/api/v1{endpoint}"
-            response = await ClientManager.client.get(url, params=params)
-            response.raise_for_status()
-            return response.json()
-        except httpx.TimeoutException:
-            is_timeout = True
-            continue
-        except Exception as e:
-            last_error = e
-            continue
-    
-    if is_timeout:
-        raise httpx.TimeoutException("API Timeout")
     raise last_error if last_error else Exception("All instances failed")
 
 ## --- ルーティング ---
@@ -103,10 +83,14 @@ async def search(request: Request, q: str = Query(...), page: int = 1, type: str
             "type": type,
             "page": page
         })
-    except httpx.TimeoutException:
-        return templates.TemplateResponse("apitimeout.html", {"request": request})
-    except Exception:
-        return templates.TemplateResponse("apiallerror.html", {"request": request, "instances": INVIDIOUS_INSTANCES})
+    except Exception as e:
+        return templates.TemplateResponse("search.html", {
+            "request": request, 
+            "query": q, 
+            "results": [],
+            "type": type,
+            "page": page
+        })
 
 @app.get("/shorts/{v}", response_class=HTMLResponse)
 async def shorts_player(request: Request, v: str):
@@ -114,15 +98,9 @@ async def shorts_player(request: Request, v: str):
         # 動画詳細とコメントを並行して取得
         video_task = fetch_invidious(f"/videos/{v}")
         comment_task = fetch_invidious(f"/comments/{v}")
-        results = await asyncio.gather(video_task, comment_task, return_exceptions=True)
+        video_data, comment_data = await asyncio.gather(video_task, comment_task, return_exceptions=True)
 
-        video_data = results
-        comment_data = results
-
-        if isinstance(video_data, httpx.TimeoutException):
-            return templates.TemplateResponse("apitimeout.html", {"request": request})
-        if isinstance(video_data, Exception): 
-            return templates.TemplateResponse("apiallerror.html", {"request": request, "instances": INVIDIOUS_INSTANCES})
+        if isinstance(video_data, Exception): raise video_data
         
         # 動画URLのリスト作成
         video_urls = [fmt.get("url") for fmt in video_data.get("formatStreams", [])]
@@ -150,15 +128,9 @@ async def watch(request: Request, v: str = Query(...)):
         # 動画詳細とコメントを並行して取得
         video_task = fetch_invidious(f"/videos/{v}")
         comment_task = fetch_invidious(f"/comments/{v}")
-        results = await asyncio.gather(video_task, comment_task, return_exceptions=True)
+        video_data, comment_data = await asyncio.gather(video_task, comment_task, return_exceptions=True)
 
-        video_data = results
-        comment_data = results
-
-        if isinstance(video_data, httpx.TimeoutException):
-            return templates.TemplateResponse("apitimeout.html", {"request": request})
-        if isinstance(video_data, Exception):
-            return templates.TemplateResponse("apiallerror.html", {"request": request, "instances": INVIDIOUS_INSTANCES})
+        if isinstance(video_data, Exception): raise video_data
         
         # ストリーム解析
         stream_urls = []
@@ -275,10 +247,8 @@ async def playlist(request: Request, list: str = Query(...)):
             "videos": data.get("videos", []),
             "description": data.get("descriptionHtml", "")
         })
-    except httpx.TimeoutException:
-        return templates.TemplateResponse("apitimeout.html", {"request": request})
-    except Exception:
-        return templates.TemplateResponse("apiallerror.html", {"request": request, "instances": INVIDIOUS_INSTANCES})
+    except Exception as e:
+        return HTMLResponse(content=f"Error: {str(e)}", status_code=500)
 
 @app.get("/channel/{ucid}", response_class=HTMLResponse)
 async def channel(request: Request, ucid: str, sort_by: str = "newest", tab: str = "videos"):
@@ -293,15 +263,10 @@ async def channel(request: Request, ucid: str, sort_by: str = "newest", tab: str
         
         results = await asyncio.gather(*tasks, return_exceptions=True)
         
-        if any(isinstance(r, httpx.TimeoutException) for r in results):
-            return templates.TemplateResponse("apitimeout.html", {"request": request})
-        if all(isinstance(r, Exception) for r in results):
-             return templates.TemplateResponse("apiallerror.html", {"request": request, "instances": INVIDIOUS_INSTANCES})
-
-        channel_data = results if not isinstance(results, Exception) else {}
-        shorts_data = results if not isinstance(results, Exception) else {}
-        playlists_data = results if not isinstance(results, Exception) else {}
-        community_data = results if not isinstance(results, Exception) else {}
+        channel_data = results[0] if not isinstance(results[0], Exception) else {}
+        shorts_data = results[1] if not isinstance(results[1], Exception) else {}
+        playlists_data = results[2] if not isinstance(results[2], Exception) else {}
+        community_data = results[3] if not isinstance(results[3], Exception) else {}
 
         # プレイリストの整形
         playlists = []
@@ -349,21 +314,23 @@ async def channel(request: Request, ucid: str, sort_by: str = "newest", tab: str
 async def suggest(keyword: str):
     instances = list(INVIDIOUS_INSTANCES)
     random.shuffle(instances)
-    for instance in instances:
-        try:
-            resp = await ClientManager.client.get(f"{instance.rstrip('/')}/api/v1/search/suggestions", params={"q": keyword})
-            if resp.status_code == 200:
-                return resp.json().get("suggestions", [])
-        except: continue
+    async with httpx.AsyncClient() as client:
+        for instance in instances:
+            try:
+                resp = await client.get(f"{instance.rstrip('/')}/api/v1/search/suggestions", params={"q": keyword})
+                if resp.status_code == 200:
+                    return resp.json().get("suggestions", [])
+            except: continue
     return []
 
 @app.get("/proxy/thumb")
 async def proxy_thumb(v: str):
     thumb_url = f"https://i.ytimg.com/vi/{v}/mqdefault.jpg"
-    try:
-        resp = await ClientManager.client.get(thumb_url)
-        return Response(content=resp.content, media_type="image/jpeg")
-    except: return Response(status_code=404)
+    async with httpx.AsyncClient() as client:
+        try:
+            resp = await client.get(thumb_url)
+            return Response(content=resp.content, media_type="image/jpeg")
+        except: return Response(status_code=404)
 
 @app.get("/thumbnail")
 async def thumbnail(v: str):
@@ -388,25 +355,26 @@ async def read_2048(request: Request):
 @app.get("/status", response_class=HTMLResponse)
 async def read_status(request: Request):
     status_results = []
-    for instance in INVIDIOUS_INSTANCES:
-        start_time = datetime.now()
-        try:
-            # 統計APIを叩いて稼働状況を確認
-            resp = await ClientManager.client.get(f"{instance.rstrip('/')}/api/v1/stats", timeout=5.0)
-            latency = (datetime.now() - start_time).total_seconds() * 1000
-            if resp.status_code == 200:
-                data = resp.json()
-                status_results.append({
-                    "instance": instance,
-                    "status": "Online",
-                    "latency": f"{int(latency)}ms",
-                    "version": data.get("software", {}).get("version", "unknown"),
-                    "users": data.get("usage", {}).get("users", {}).get("total", 0)
-                })
-            else:
-                status_results.append({"instance": instance, "status": f"Error {resp.status_code}", "latency": "-", "version": "-", "users": "-"})
-        except Exception:
-            status_results.append({"instance": instance, "status": "Offline", "latency": "-", "version": "-", "users": "-"})
+    async with httpx.AsyncClient(timeout=5.0) as client:
+        for instance in INVIDIOUS_INSTANCES:
+            start_time = datetime.now()
+            try:
+                # 統計APIを叩いて稼働状況を確認
+                resp = await client.get(f"{instance.rstrip('/')}/api/v1/stats")
+                latency = (datetime.now() - start_time).total_seconds() * 1000
+                if resp.status_code == 200:
+                    data = resp.json()
+                    status_results.append({
+                        "instance": instance,
+                        "status": "Online",
+                        "latency": f"{int(latency)}ms",
+                        "version": data.get("software", {}).get("version", "unknown"),
+                        "users": data.get("usage", {}).get("users", {}).get("total", 0)
+                    })
+                else:
+                    status_results.append({"instance": instance, "status": f"Error {resp.status_code}", "latency": "-", "version": "-", "users": "-"})
+            except Exception:
+                status_results.append({"instance": instance, "status": "Offline", "latency": "-", "version": "-", "users": "-"})
     
     return templates.TemplateResponse("status.html", {"request": request, "instances": status_results})
 
