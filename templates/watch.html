@@ -276,7 +276,7 @@
             <div id="player-wrapper">
                 <div id="loader" class="loader-overlay"><div class="custom-loader"></div></div>
                 <video id="video-player" controls autoplay poster="/thumbnail?v={{ videoid }}">
-                    <source src="{{ videourls[0] }}" type="video/mp4">
+                    <source src="{{ videourls }}" type="video/mp4">
                     ブラウザが動画再生に対応していません。
                 </video>
                 <audio id="audio-sync" style="display:none;"></audio>
@@ -291,7 +291,7 @@
                 <div class="quality-selector">
                     <span style="font-size: 0.8rem; color: #888;">画質を選択:</span>
                     <select class="select-styled" onchange="changeQuality(this.value)">
-                        <option value="{{ videourls[0] }}">自動 (デフォルト)</option>
+                        <option value="{{ videourls }}">自動 (デフォルト)</option>
                         {% for stream in streamUrls %}
                         <option value="{{ stream.url }}" data-audio="{{ stream.audioUrl or '' }}">
                             {{ stream.resolution }} ({{ stream.format }})
@@ -399,24 +399,33 @@
             setTimeout(reloadVideoSource, 1000);
         });
 
-        // 音声同期ロジック (0.4秒以上のズレを検知して自動修正)
-        function syncMedia() {
-            if (audio.src && !video.paused) {
-                const diff = Math.abs(video.currentTime - audio.currentTime);
-                if (diff > 0.4) {
+        // 音声同期ロジック (重いsetIntervalを廃止し、timeupdateでネイティブに同期)
+        let isSyncing = false;
+        video.addEventListener('timeupdate', () => {
+            if (audio.src && !video.paused && !isSyncing) {
+                const diff = video.currentTime - audio.currentTime;
+                // ズレが0.3秒を超えた場合のみ補正。頻繁なシークによる重さを回避
+                if (Math.abs(diff) > 0.3) {
+                    isSyncing = true;
                     audio.currentTime = video.currentTime;
-                    console.log("Media Synced: " + diff);
+                    // シーク完了後にフラグを解除
+                    setTimeout(() => { isSyncing = false; }, 50);
                 }
             }
-        }
+        });
 
-        // 定期的にズレを監視
-        setInterval(syncMedia, 1000);
-
-        video.addEventListener('play', () => audio.play());
-        video.addEventListener('pause', () => audio.pause());
-        video.addEventListener('seeking', () => { audio.currentTime = video.currentTime; });
-        video.addEventListener('ratechange', () => { audio.playbackRate = video.playbackRate; });
+        video.addEventListener('play', () => {
+            if (audio.src) audio.play().catch(() => {});
+        });
+        video.addEventListener('pause', () => {
+            if (audio.src) audio.pause();
+        });
+        video.addEventListener('seeking', () => {
+            if (audio.src) audio.currentTime = video.currentTime;
+        });
+        video.addEventListener('ratechange', () => {
+            if (audio.src) audio.playbackRate = video.playbackRate;
+        });
 
         function showNotify(msg, isError = false) {
             const alertBox = document.getElementById("custom-alert");
