@@ -146,18 +146,40 @@
 
         .video-title-watch { font-size: 1.3rem; font-weight: 700; margin: 0 0 15px; line-height: 1.4; }
 
+        /* --- 独自プルダウンのスタイル --- */
         .quality-selector { display: flex; align-items: center; gap: 10px; margin-bottom: 20px; flex-wrap: wrap; }
+        .custom-select-wrapper { position: relative; width: 220px; user-select: none; z-index: 100; }
+        .custom-select-trigger {
+            padding: 10px 15px; border-radius: 12px; border: 1px solid var(--border-color);
+            background: var(--card-bg); color: var(--text-dark); cursor: pointer;
+            display: flex; align-items: center; justify-content: space-between; font-size: 0.9rem;
+            transition: all 0.2s; box-shadow: 0 2px 5px rgba(0,0,0,0.03);
+        }
+        .custom-select-trigger:hover { border-color: var(--primary-color); }
+        .custom-options {
+            position: absolute; top: 110%; left: 0; right: 0;
+            background: var(--card-bg); border-radius: 12px; border: 1px solid var(--border-color);
+            box-shadow: 0 10px 25px rgba(0,0,0,0.1);
+            display: none; flex-direction: column; overflow: hidden;
+            backdrop-filter: blur(10px);
+        }
+        .custom-select-wrapper.open .custom-options { display: flex; animation: fadeIn 0.2s; }
+        .custom-option {
+            padding: 12px 15px; cursor: pointer; font-size: 0.85rem; border-bottom: 1px solid var(--border-color);
+            transition: background 0.2s;
+        }
+        .custom-option:last-child { border-bottom: none; }
+        .custom-option:hover { background: var(--primary-color); color: #fff; }
+        .custom-option.selected { background: rgba(0, 123, 255, 0.1); color: var(--primary-color); font-weight: 700; }
+
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(-10px); } to { opacity: 1; transform: translateY(0); } }
+
         .quality-btn {
             background: rgba(0, 123, 255, 0.1); color: var(--primary-color);
             border: none; padding: 8px 18px; border-radius: 50px; cursor: pointer;
             font-weight: 700; font-size: 0.85rem; transition: all 0.2s;
         }
         .quality-btn:hover { background: var(--primary-color); color: #fff; transform: translateY(-2px); }
-
-        .select-styled {
-            padding: 8px 15px; border-radius: 10px; border: 1px solid var(--border-color);
-            background: var(--card-bg); color: var(--text-dark); outline: none; cursor: pointer;
-        }
 
         .stats-bar { display: flex; gap: 20px; color: #888; font-size: 0.9rem; margin-bottom: 15px; border-bottom: 1px solid var(--border-color); padding-bottom: 15px; }
         .stats-bar i { margin-right: 5px; color: var(--primary-color); }
@@ -276,7 +298,12 @@
             <div id="player-wrapper">
                 <div id="loader" class="loader-overlay"><div class="custom-loader"></div></div>
                 <video id="video-player" controls autoplay poster="/thumbnail?v={{ videoid }}">
-                    <source src="{{ videourls }}" type="video/mp4">
+                    {# デフォルトを360pのURLに設定 #}
+                    {% set default_url = videourls %}
+                    {% for stream in streamUrls %}
+                        {% if stream.resolution == '360p' %}{% set default_url = stream.url %}{% endif %}
+                    {% endfor %}
+                    <source src="{{ default_url }}" type="video/mp4">
                     ブラウザが動画再生に対応していません。
                 </video>
                 <audio id="audio-sync" style="display:none;"></audio>
@@ -288,17 +315,27 @@
                     <span><i class="fas fa-eye"></i> {{ view_count }} 回視聴</span>
                     <span><i class="fas fa-thumbs-up"></i> {{ like_count }}</span>
                 </div>
+                
                 <div class="quality-selector">
                     <span style="font-size: 0.8rem; color: #888;">画質を選択:</span>
-                    <select class="select-styled" onchange="changeQuality(this.value)">
-                        <option value="{{ videourls }}">自動 (デフォルト)</option>
-                        {% for stream in streamUrls %}
-                        <option value="{{ stream.url }}" data-audio="{{ stream.audioUrl or '' }}">
-                            {{ stream.resolution }} ({{ stream.format }})
-                        </option>
-                        {% endfor %}
-                    </select>
+                    <div class="custom-select-wrapper" id="qualitySelect">
+                        <div class="custom-select-trigger">
+                            <span>選択してください</span>
+                            <i class="fas fa-chevron-down"></i>
+                        </div>
+                        <div class="custom-options">
+                            <div class="custom-option" data-value="{{ videourls }}" data-audio="">自動 (デフォルト)</div>
+                            {% for stream in streamUrls %}
+                            <div class="custom-option {% if stream.resolution == '360p' %}selected{% endif %}" 
+                                 data-value="{{ stream.url }}" 
+                                 data-audio="{{ stream.audioUrl or '' }}">
+                                {{ stream.resolution }} ({{ stream.format }})
+                            </div>
+                            {% endfor %}
+                        </div>
+                    </div>
                 </div>
+
                 <a href="/channel/{{ author_id }}" class="channel-info">
                     <img src="{{ author_icon }}" alt="icon">
                     <div>
@@ -358,6 +395,61 @@
         const audio = document.getElementById('audio-sync');
         const loader = document.getElementById('loader');
 
+        // --- 独自プルダウンの制御 ---
+        const selectWrapper = document.getElementById('qualitySelect');
+        const selectTrigger = selectWrapper.querySelector('.custom-select-trigger');
+        const options = selectWrapper.querySelectorAll('.custom-option');
+
+        // 初期表示テキスト設定
+        const initialSelected = selectWrapper.querySelector('.custom-option.selected');
+        if(initialSelected) {
+            selectTrigger.querySelector('span').innerText = initialSelected.innerText;
+        } else {
+            selectTrigger.querySelector('span').innerText = options[0].innerText;
+        }
+
+        selectTrigger.addEventListener('click', () => {
+            selectWrapper.classList.toggle('open');
+        });
+
+        options.forEach(option => {
+            option.addEventListener('click', function() {
+                const url = this.getAttribute('data-value');
+                const audioUrl = this.getAttribute('data-audio');
+                
+                // 表示更新
+                options.forEach(opt => opt.classList.remove('selected'));
+                this.classList.add('selected');
+                selectTrigger.querySelector('span').innerText = this.innerText;
+                selectWrapper.classList.remove('open');
+                
+                // 再生切替
+                changeQualityLogic(url, audioUrl);
+            });
+        });
+
+        window.addEventListener('click', (e) => {
+            if (!selectWrapper.contains(e.target)) {
+                selectWrapper.classList.remove('open');
+            }
+        });
+
+        function changeQualityLogic(url, audioUrl) {
+            const currentTime = video.currentTime;
+            const isPaused = video.paused;
+            loader.style.display = 'flex';
+            video.src = url;
+            if(audioUrl) {
+                audio.src = audioUrl;
+                audio.load();
+            } else {
+                audio.src = "";
+            }
+            video.currentTime = currentTime;
+            if (!isPaused) video.play().catch(() => {});
+            showNotify("画質を切り替えました");
+        }
+
         // 動画専用の再読み込みロジック
         function reloadVideoSource() {
             const currentTime = video.currentTime;
@@ -368,7 +460,7 @@
             showNotify("動画ソースを再接続しました");
         }
 
-        // 監視タイマー: 0秒で止まっている、または再生ボタン後も待ち続ける場合
+        // 監視タイマー
         let loadStuckTimer = null;
         video.addEventListener('play', () => {
             loadStuckTimer = setTimeout(() => {
@@ -399,16 +491,14 @@
             setTimeout(reloadVideoSource, 1000);
         });
 
-        // 音声同期ロジック (重いsetIntervalを廃止し、timeupdateでネイティブに同期)
+        // 音声同期ロジック
         let isSyncing = false;
         video.addEventListener('timeupdate', () => {
             if (audio.src && !video.paused && !isSyncing) {
                 const diff = video.currentTime - audio.currentTime;
-                // ズレが0.3秒を超えた場合のみ補正。頻繁なシークによる重さを回避
                 if (Math.abs(diff) > 0.3) {
                     isSyncing = true;
                     audio.currentTime = video.currentTime;
-                    // シーク完了後にフラグを解除
                     setTimeout(() => { isSyncing = false; }, 50);
                 }
             }
@@ -456,25 +546,6 @@
             }
         });
 
-        function changeQuality(url) {
-            const selectedOption = event.target.options[event.target.selectedIndex];
-            const audioUrl = selectedOption.getAttribute('data-audio');
-            const currentTime = video.currentTime;
-            const isPaused = video.paused;
-            loader.style.display = 'flex';
-            video.src = url;
-            if(audioUrl) {
-                audio.src = audioUrl;
-                audio.load();
-            } else {
-                audio.src = "";
-            }
-            video.currentTime = currentTime;
-            if (!isPaused) video.play().catch(() => {});
-            showNotify("画質を切り替えました");
-        }
-
-        // 新設関数の追加
         function openModal() { document.getElementById('dl-modal').style.display = 'flex'; }
         function closeModal() { document.getElementById('dl-modal').style.display = 'none'; }
         window.onclick = function(event) {
