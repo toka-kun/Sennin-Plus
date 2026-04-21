@@ -24,9 +24,13 @@ INVIDIOUS_INSTANCES = [
     'https://invidious.nerdvpn.de/',
 ]
 
-async def fetch_invidious(endpoint: str, params: dict = None):
-    instances = list(INVIDIOUS_INSTANCES)
-    random.shuffle(instances)
+async def fetch_invidious(endpoint: str, params: dict = None, force_instance: str = None):
+    # force_instanceがある場合はそれを最優先にし、それ以外をシャッフルして繋げる
+    if force_instance:
+        instances = [force_instance] + [i for i in INVIDIOUS_INSTANCES if i != force_instance]
+    else:
+        instances = list(INVIDIOUS_INSTANCES)
+        random.shuffle(instances)
     
     last_error = None
     async with httpx.AsyncClient(timeout=15.0) as client:
@@ -36,6 +40,11 @@ async def fetch_invidious(endpoint: str, params: dict = None):
                 response = await client.get(url, params=params)
                 response.raise_for_status()
                 return response.json()
+            except httpx.TimeoutException as e:
+                # タイムアウト時は即座にTimeoutErrorを投げて専用ページへ飛ばす選択肢もあるが、
+                # ここでは次のインスタンスを試行し、全てダメなら最後に判定する
+                last_error = e
+                continue
             except Exception as e:
                 last_error = e
                 continue
@@ -49,14 +58,14 @@ async def index(request: Request):
     return templates.TemplateResponse("home.html", {"request": request})
 
 @app.get("/search", response_class=HTMLResponse)
-async def search(request: Request, q: str = Query(...), page: int = 1, type: str = "video"):
+async def search(request: Request, q: str = Query(...), page: int = 1, type: str = "video", force_instance: str = Query(None)):
     try:
         # Invidious APIのtype指定に合わせて調整 (Shortsはvideoとして扱い検索ワードで調整されることもあるが基本はvideo)
         search_type = type if type != "short" else "video"
         # 検索キーワードに"shorts"を付与して精度を上げる
         query_q = q if type != "short" else f"{q} shorts"
         
-        data = await fetch_invidious("/search", {"q": query_q, "page": page, "type": search_type})
+        data = await fetch_invidious("/search", {"q": query_q, "page": page, "type": search_type}, force_instance=force_instance)
         results = []
         for item in data:
             results.append({
@@ -83,21 +92,17 @@ async def search(request: Request, q: str = Query(...), page: int = 1, type: str
             "type": type,
             "page": page
         })
+    except httpx.TimeoutException:
+        return templates.TemplateResponse("apitimeout.html", {"request": request})
     except Exception as e:
-        return templates.TemplateResponse("search.html", {
-            "request": request, 
-            "query": q, 
-            "results": [],
-            "type": type,
-            "page": page
-        })
+        return templates.TemplateResponse("apiallerror.html", {"request": request, "instances": INVIDIOUS_INSTANCES})
 
 @app.get("/shorts/{v}", response_class=HTMLResponse)
-async def shorts_player(request: Request, v: str):
+async def shorts_player(request: Request, v: str, force_instance: str = Query(None)):
     try:
         # 動画詳細とコメントを並行して取得
-        video_task = fetch_invidious(f"/videos/{v}")
-        comment_task = fetch_invidious(f"/comments/{v}")
+        video_task = fetch_invidious(f"/videos/{v}", force_instance=force_instance)
+        comment_task = fetch_invidious(f"/comments/{v}", force_instance=force_instance)
         video_data, comment_data = await asyncio.gather(video_task, comment_task, return_exceptions=True)
 
         if isinstance(video_data, Exception): raise video_data
@@ -119,15 +124,17 @@ async def shorts_player(request: Request, v: str):
             "description": video_data.get("descriptionHtml", "").replace("\n", "<br>"),
             "comments": comment_data.get("comments", []) if not isinstance(comment_data, Exception) else []
         })
+    except httpx.TimeoutException:
+        return templates.TemplateResponse("apitimeout.html", {"request": request})
     except Exception as e:
-        return HTMLResponse(content=f"Error: {str(e)}", status_code=500)
+        return templates.TemplateResponse("apiallerror.html", {"request": request, "instances": INVIDIOUS_INSTANCES})
 
 @app.get("/watch", response_class=HTMLResponse)
-async def watch(request: Request, v: str = Query(...)):
+async def watch(request: Request, v: str = Query(...), force_instance: str = Query(None)):
     try:
         # 動画詳細とコメントを並行して取得
-        video_task = fetch_invidious(f"/videos/{v}")
-        comment_task = fetch_invidious(f"/comments/{v}")
+        video_task = fetch_invidious(f"/videos/{v}", force_instance=force_instance)
+        comment_task = fetch_invidious(f"/comments/{v}", force_instance=force_instance)
         video_data, comment_data = await asyncio.gather(video_task, comment_task, return_exceptions=True)
 
         if isinstance(video_data, Exception): raise video_data
@@ -215,8 +222,10 @@ async def watch(request: Request, v: str = Query(...)):
         response.set_cookie(key="history", value=json.dumps(history), max_age=2592000, httponly=True)
         return response
 
+    except httpx.TimeoutException:
+        return templates.TemplateResponse("apitimeout.html", {"request": request})
     except Exception as e:
-        return HTMLResponse(content=f"Error: {str(e)}", status_code=500)
+        return templates.TemplateResponse("apiallerror.html", {"request": request, "instances": INVIDIOUS_INSTANCES})
 
 @app.get("/history", response_class=HTMLResponse)
 async def history_page(request: Request):
@@ -235,9 +244,9 @@ async def clear_history():
     return response
 
 @app.get("/playlist", response_class=HTMLResponse)
-async def playlist(request: Request, list: str = Query(...)):
+async def playlist(request: Request, list: str = Query(...), force_instance: str = Query(None)):
     try:
-        data = await fetch_invidious(f"/playlists/{list}")
+        data = await fetch_invidious(f"/playlists/{list}", force_instance=force_instance)
         return templates.TemplateResponse("playlist.html", {
             "request": request,
             "title": data.get("title"),
@@ -247,26 +256,32 @@ async def playlist(request: Request, list: str = Query(...)):
             "videos": data.get("videos", []),
             "description": data.get("descriptionHtml", "")
         })
+    except httpx.TimeoutException:
+        return templates.TemplateResponse("apitimeout.html", {"request": request})
     except Exception as e:
-        return HTMLResponse(content=f"Error: {str(e)}", status_code=500)
+        return templates.TemplateResponse("apiallerror.html", {"request": request, "instances": INVIDIOUS_INSTANCES})
 
 @app.get("/channel/{ucid}", response_class=HTMLResponse)
-async def channel(request: Request, ucid: str, sort_by: str = "newest", tab: str = "videos"):
+async def channel(request: Request, ucid: str, sort_by: str = "newest", tab: str = "videos", force_instance: str = Query(None)):
     try:
         # 並行してデータを取得
         tasks = [
-            fetch_invidious(f"/channels/{ucid}", {"sort_by": sort_by}),
-            fetch_invidious(f"/channels/{ucid}/shorts"),
-            fetch_invidious(f"/channels/{ucid}/playlists"),
-            fetch_invidious(f"/channels/{ucid}/community")
+            fetch_invidious(f"/channels/{ucid}", {"sort_by": sort_by}, force_instance=force_instance),
+            fetch_invidious(f"/channels/{ucid}/shorts", force_instance=force_instance),
+            fetch_invidious(f"/channels/{ucid}/playlists", force_instance=force_instance),
+            fetch_invidious(f"/channels/{ucid}/community", force_instance=force_instance)
         ]
         
         results = await asyncio.gather(*tasks, return_exceptions=True)
         
-        channel_data = results[0] if not isinstance(results[0], Exception) else {}
-        shorts_data = results[1] if not isinstance(results[1], Exception) else {}
-        playlists_data = results[2] if not isinstance(results[2], Exception) else {}
-        community_data = results[3] if not isinstance(results[3], Exception) else {}
+        # 最初のタスク（チャンネル基本情報）が致命的エラーなら例外を投げる
+        if isinstance(results, httpx.TimeoutException): raise results
+        if isinstance(results, Exception): raise results
+
+        channel_data = results
+        shorts_data = results if not isinstance(results, Exception) else {}
+        playlists_data = results if not isinstance(results, Exception) else {}
+        community_data = results if not isinstance(results, Exception) else {}
 
         # プレイリストの整形
         playlists = []
@@ -307,8 +322,10 @@ async def channel(request: Request, ucid: str, sort_by: str = "newest", tab: str
             "sort_by": sort_by,
             "tab": tab
         })
+    except httpx.TimeoutException:
+        return templates.TemplateResponse("apitimeout.html", {"request": request})
     except Exception as e:
-        return HTMLResponse(content=f"Error: {str(e)}", status_code=500)
+        return templates.TemplateResponse("apiallerror.html", {"request": request, "instances": INVIDIOUS_INSTANCES})
 
 @app.get("/suggest")
 async def suggest(keyword: str):
