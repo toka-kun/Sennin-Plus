@@ -20,8 +20,11 @@ INVIDIOUS_INSTANCES = [
     'https://invidious.f5.si/',
     'https://invidious.lunivers.trade/',
     'https://invidious.ducks.party/',
+    'https://super8.absturztau.be/',
+    'https://invidious.nikkosphere.com/',
+    'https://yt.omada.cafe/',
     'https://iv.melmac.space/',
-    'https://invidious.nerdvpn.de/',
+    'https://iv.duti.dev/',
 ]
 
 async def fetch_invidious(endpoint: str, params: dict = None, force_instance: str = None):
