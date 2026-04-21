@@ -147,9 +147,14 @@ async def watch(request: Request, v: str = Query(...), force_instance: str = Que
         audio_url = None
         adaptive = video_data.get("adaptiveFormats", [])
         for fmt in adaptive:
-            if "audio" in fmt.get("type", ""):
+            if "audio" in fmt.get("type", "") and fmt.get("language") == "ja":
                 audio_url = fmt.get("url")
                 break
+        if not audio_url:
+            for fmt in adaptive:
+                if "audio" in fmt.get("type", ""):
+                    audio_url = fmt.get("url")
+                    break
 
         # 混合ストリーム(mp4等)
         for fmt in video_data.get("formatStreams", []):
