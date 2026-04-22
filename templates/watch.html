@@ -438,15 +438,30 @@
             const currentTime = video.currentTime;
             const isPaused = video.paused;
             loader.style.display = 'flex';
+            
+            // ソースの更新と読み込み強制
             video.src = url;
+            video.load(); 
+            
             if(audioUrl) {
                 audio.src = audioUrl;
                 audio.load();
             } else {
                 audio.src = "";
             }
+            
             video.currentTime = currentTime;
-            if (!isPaused) video.play().catch(() => {});
+            
+            // ブラウザの制約を回避するため、常にplayを試行
+            const playPromise = video.play();
+            if (playPromise !== undefined) {
+                playPromise.then(_ => {
+                    if (isPaused) video.pause();
+                }).catch(error => {
+                    console.log("Auto-play was prevented");
+                });
+            }
+            
             showNotify("画質を切り替えました");
         }
 
@@ -463,11 +478,12 @@
         // 監視タイマー
         let loadStuckTimer = null;
         video.addEventListener('play', () => {
+            if (loadStuckTimer) clearTimeout(loadStuckTimer);
             loadStuckTimer = setTimeout(() => {
                 if (video.currentTime === 0 && video.readyState < 3) {
                     reloadVideoSource();
                 }
-            }, 5000);
+            }, 3000); // 5秒から3秒に短縮して反応を改善
         });
 
         video.addEventListener('waiting', () => { 
@@ -475,7 +491,7 @@
             if (!loadStuckTimer) {
                 loadStuckTimer = setTimeout(() => {
                     if (video.paused === false) reloadVideoSource();
-                }, 8000);
+                }, 5000); // 8秒から5秒に短縮
             }
         });
 
