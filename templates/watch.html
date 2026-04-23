@@ -105,6 +105,7 @@
             border-radius: 20px; overflow: hidden; box-shadow: 0 20px 50px rgba(0,0,0,0.15);
         }
         video { width: 100%; height: 100%; outline: none; }
+        iframe { width: 100%; height: 100%; border: none; }
         .loader-overlay {
             position: absolute; top: 0; left: 0; width: 100%; height: 100%;
             background: rgba(0,0,0,0.4); display: none; align-items: center; justify-content: center;
@@ -216,6 +217,43 @@
             .watch-container { grid-template-columns: 1fr; padding: 0 15px; }
             .recommend-section { margin-top: 30px; }
         }
+
+        /* フローティングコントロールボタンのスタイル */
+        #floating-control {
+            position: fixed; bottom: 30px; right: 30px; z-index: 2000;
+            display: flex; flex-direction: column; align-items: flex-end; gap: 15px;
+        }
+        .control-trigger {
+            width: 60px; height: 60px; border-radius: 50%;
+            background: var(--primary-color); color: white;
+            display: flex; align-items: center; justify-content: center;
+            font-size: 1.5rem; cursor: pointer; box-shadow: 0 8px 25px rgba(0,123,255,0.4);
+            transition: all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+        }
+        .control-trigger:hover { transform: scale(1.1) rotate(90deg); }
+        .control-menu {
+            background: var(--glass-bg); backdrop-filter: blur(15px);
+            padding: 15px; border-radius: 20px; border: 1px solid var(--border-color);
+            box-shadow: 0 10px 40px rgba(0,0,0,0.2);
+            display: none; flex-direction: column; gap: 10px; min-width: 220px;
+            animation: slideInUp 0.3s ease;
+        }
+        @keyframes slideInUp { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: translateY(0); } }
+        .control-item {
+            display: flex; align-items: center; justify-content: space-between;
+            padding: 10px 15px; border-radius: 12px; cursor: pointer;
+            font-size: 0.9rem; font-weight: 700; transition: all 0.2s;
+            background: rgba(0,0,0,0.03); color: var(--text-dark);
+        }
+        @media (prefers-color-scheme: dark) { .control-item { background: rgba(255,255,255,0.05); } }
+        .control-item:hover { background: rgba(0,123,255,0.1); }
+        .control-item.active { background: var(--primary-color); color: white; }
+        .control-item i { font-size: 1.1rem; }
+        .source-options { display: none; flex-direction: column; gap: 5px; padding-left: 10px; margin-top: -5px; }
+        .source-options.show { display: flex; }
+        .sub-item { font-size: 0.8rem; padding: 8px 12px; border-radius: 8px; background: rgba(0,0,0,0.05); }
+        @media (prefers-color-scheme: dark) { .sub-item { background: rgba(255,255,255,0.08); } }
+        .sub-item.selected { background: var(--primary-color); color: white; }
     </style>
 </head>
 <body>
@@ -253,6 +291,31 @@
         </div>
     </div>
 
+    <div id="floating-control">
+        <div class="control-menu" id="ctrlMenu">
+            <div class="control-item" onclick="toggleLoop(this)">
+                <span>ループ再生</span><i class="fas fa-redo"></i>
+            </div>
+            <div class="control-item" onclick="toggleMute(this)">
+                <span>音声ミュート</span><i class="fas fa-volume-mute"></i>
+            </div>
+            <div class="control-item" onclick="openQualityFromCtrl()">
+                <span>画質選択</span><i class="fas fa-sliders-h"></i>
+            </div>
+            <div class="control-item" id="sourceToggle" onclick="toggleSourceOptions()">
+                <span>YouTube切替</span><i class="fab fa-youtube"></i>
+            </div>
+            <div class="source-options" id="srcOpts">
+                <div class="sub-item" id="src-nocookie" onclick="setExternalSource('nocookie')">NoCookie</div>
+                <div class="sub-item" id="src-edu" onclick="setExternalSource('edu')">Education</div>
+                <div class="sub-item selected" id="src-stream" onclick="setExternalSource('stream')">解除 (Stream)</div>
+            </div>
+        </div>
+        <div class="control-trigger" onclick="toggleControlMenu()">
+            <i class="fas fa-cog"></i>
+        </div>
+    </div>
+
     <main class="watch-container">
         <div class="video-section">
             <div id="player-wrapper">
@@ -261,6 +324,7 @@
                     ブラウザが動画再生に対応していません。
                 </video>
                 <audio id="audio-sync" style="display:none;"></audio>
+                <div id="iframe-container" style="display:none; width:100%; height:100%;"></div>
             </div>
 
             <div class="video-details">
@@ -351,6 +415,62 @@
         const selectWrapper = document.getElementById('qualitySelect');
         const selectTrigger = selectWrapper.querySelector('.custom-select-trigger');
         const options = selectWrapper.querySelectorAll('.custom-option');
+        const iframeContainer = document.getElementById('iframe-container');
+
+        function toggleControlMenu() {
+            const menu = document.getElementById('ctrlMenu');
+            menu.style.display = (menu.style.display === 'flex') ? 'none' : 'flex';
+        }
+
+        function toggleLoop(el) {
+            video.loop = !video.loop;
+            el.classList.toggle('active');
+            showNotify(video.loop ? "ループ再生を有効にしました" : "ループ再生を解除しました");
+        }
+
+        function toggleMute(el) {
+            video.muted = !video.muted;
+            audio.muted = video.muted;
+            el.classList.toggle('active');
+            showNotify(video.muted ? "音声をミュートしました" : "ミュートを解除しました");
+        }
+
+        function openQualityFromCtrl() {
+            toggleControlMenu();
+            selectWrapper.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            setTimeout(() => selectWrapper.classList.add('open'), 500);
+        }
+
+        function toggleSourceOptions() {
+            document.getElementById('srcOpts').classList.toggle('show');
+        }
+
+        let currentSourceType = 'stream';
+        function setExternalSource(type) {
+            if (currentSourceType === type) return;
+            
+            document.querySelectorAll('.sub-item').forEach(i => i.classList.remove('selected'));
+            document.getElementById('src-' + type).classList.add('selected');
+            document.getElementById('sourceToggle').classList.toggle('active', type !== 'stream');
+            
+            currentSourceType = type;
+            
+            if (type === 'stream') {
+                iframeContainer.style.display = 'none';
+                iframeContainer.innerHTML = '';
+                video.style.display = 'block';
+                video.play().catch(() => {});
+                showNotify("Streamソースに戻しました");
+            } else {
+                let domain = type === 'nocookie' ? 'www.youtube-nocookie.com' : 'www.youtube-education.com';
+                const ytUrl = `https://${domain}/embed/{{ videoid }}?autoplay=1`;
+                video.pause();
+                video.style.display = 'none';
+                iframeContainer.innerHTML = `<iframe src="${ytUrl}" allow="autoplay; encrypted-media" allowfullscreen></iframe>`;
+                iframeContainer.style.display = 'block';
+                showNotify(`${type === 'nocookie' ? 'NoCookie' : 'Education'}に切り替えました`);
+            }
+        }
 
         selectTrigger.addEventListener('click', () => {
             selectWrapper.classList.toggle('open');
@@ -373,8 +493,10 @@
         });
 
         window.addEventListener('click', (e) => {
-            if (!selectWrapper.contains(e.target)) {
+            if (!selectWrapper.contains(e.target) && !document.getElementById('floating-control').contains(e.target)) {
                 selectWrapper.classList.remove('open');
+                document.getElementById('ctrlMenu').style.display = 'none';
+                document.getElementById('srcOpts').classList.remove('show');
             }
         });
 
@@ -398,6 +520,7 @@
         }
 
         function reloadVideoSource() {
+            if (currentSourceType !== 'stream') return;
             const currentTime = video.currentTime;
             const wasPlaying = !video.paused;
             video.load();
@@ -431,6 +554,7 @@
             loadStuckTimer = null;
         });
         video.addEventListener('error', () => {
+            if (currentSourceType !== 'stream') return;
             loader.style.display = 'none';
             showNotify("読み込みエラー。再試行中...", true);
             setTimeout(reloadVideoSource, 1000);
