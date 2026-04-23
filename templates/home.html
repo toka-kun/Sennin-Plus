@@ -30,6 +30,8 @@
             background-color: var(--bg-light);
             color: var(--text-dark);
             overflow-x: hidden;
+            /* スワイプ操作によるブラウザの戻る/進むを抑制（メニュー操作のため） */
+            touch-action: pan-y;
         }
 
         /* --- 改良版トップバー --- */
@@ -360,6 +362,14 @@
             border-left: 5px solid var(--primary-color);
             animation: slideInDownRight 0.6s cubic-bezier(0.23, 1, 0.32, 1);
             box-sizing: border-box;
+            /* スワイプ連動用 */
+            transition: transform 0.2s ease, opacity 0.2s ease;
+            cursor: grab;
+            user-select: none;
+        }
+
+        .latest-info:active {
+            cursor: grabbing;
         }
 
         @keyframes slideInDownRight {
@@ -516,9 +526,21 @@
                 $("#top-nav").removeClass("show");
             });
 
-            // Status通知を閉じる機能
+            // Status通知を閉じる機能（汎用関数化）
+            function closeStatusInfo() {
+                $("#latestInfo").fadeOut(300, function() {
+                    // 7秒後に再表示
+                    setTimeout(function() {
+                        $("#latestInfo").css({
+                            "transform": "translateX(0)",
+                            "opacity": "1"
+                        }).fadeIn(300);
+                    }, 7000);
+                });
+            }
+
             $(".close-info").click(function(){
-                $("#latestInfo").fadeOut(300);
+                closeStatusInfo();
             });
 
             // スクロール時のヘッダー変化
@@ -530,7 +552,7 @@
                 }
             });
 
-            // オートコンプリートの強化
+            // オートコンプリートの強化（遅延0で即時表示・判定範囲広め）
             $('#searchbox').autocomplete({
                 source: function (request, response) {
                     var url = "/suggest?keyword=" + encodeURIComponent(request.term);
@@ -538,7 +560,8 @@
                         response(data);
                     });
                 },
-                delay: 200
+                delay: 0, // 表示の遅れを最小化
+                minLength: 1 // 1文字から反応
             });
 
             // ヘッダー非表示機能
@@ -570,6 +593,7 @@
                 $("#menu-panel").addClass("open");
             });
 
+            // クローズボタン用（パネル外クリックとは別）
             $("#close-menu").click(function(){
                 $("#menu-panel").removeClass("open");
             });
@@ -585,6 +609,63 @@
                     menu.removeClass("open");
                 }
             });
+
+            // --- 新規追加：スワイプ操作ロジック ---
+            let startX = 0;
+            let startY = 0;
+            let infoStartX = 0;
+            let isSwipingInfo = false;
+
+            document.addEventListener('touchstart', function(e) {
+                startX = e.touches[0].pageX;
+                startY = e.touches[0].pageY;
+                
+                // Status通知のスワイプ開始判定
+                if ($(e.target).closest('#latestInfo').length > 0) {
+                    isSwipingInfo = true;
+                    infoStartX = e.touches[0].pageX;
+                }
+            }, { passive: true });
+
+            document.addEventListener('touchmove', function(e) {
+                if (isSwipingInfo) {
+                    let moveX = e.touches[0].pageX - infoStartX;
+                    if (moveX > 0) { // 右方向へのスワイプのみ可視化
+                        $("#latestInfo").css({
+                            "transform": `translateX(${moveX}px)`,
+                            "opacity": 1 - (moveX / 200)
+                        });
+                    }
+                }
+            }, { passive: true });
+
+            document.addEventListener('touchend', function(e) {
+                let endX = e.changedTouches[0].pageX;
+                let endY = e.changedTouches[0].pageY;
+                let diffX = startX - endX;
+                let diffY = Math.abs(startY - endY);
+
+                // 1. どこでも左にスワイプでメニュー表示 (右から左へのスワイプ)
+                // 判定条件: 左へのスワイプ距離が50px以上、垂直移動が少ない場合
+                if (diffX > 50 && diffY < 100) {
+                    $("#menu-panel").addClass("open");
+                }
+
+                // 2. Status通知のスワイプ消去判定
+                if (isSwipingInfo) {
+                    let moveX = endX - infoStartX;
+                    if (moveX > 100) { // 100px以上右にスワイプしたら消去
+                        closeStatusInfo();
+                    } else {
+                        // 戻す
+                        $("#latestInfo").css({
+                            "transform": "translateX(0)",
+                            "opacity": "1"
+                        });
+                    }
+                    isSwipingInfo = false;
+                }
+            }, { passive: true });
         });
     </script>
 </head>
