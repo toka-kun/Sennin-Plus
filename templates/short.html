@@ -13,6 +13,7 @@
             --glass-bg: rgba(0, 0, 0, 0.6);
             --overlay-bg: rgba(0, 0, 0, 0.9);
             --menu-bg: #282828;
+            --comment-card-bg: rgba(255, 255, 255, 0.08);
         }
 
         body, html {
@@ -38,6 +39,36 @@
         video {
             width: 100%; height: 100%; object-fit: contain;
         }
+
+        /* 一時停止・読み込み表示 */
+        .video-state-overlay {
+            position: absolute;
+            top: 50%; left: 50%; transform: translate(-50%, -50%);
+            pointer-events: none; z-index: 20;
+        }
+        #pauseIcon {
+            font-size: 60px; color: rgba(255,255,255,0.7);
+            display: none;
+        }
+        #loadingSpinner {
+            width: 50px; height: 50px;
+            border: 5px solid rgba(255,255,255,0.2);
+            border-top: 5px solid #fff;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            display: none;
+        }
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+
+        /* エラーアラートアニメーション */
+        #errorAlert {
+            position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%) scale(0.9);
+            background: rgba(220, 53, 69, 0.9); color: white; padding: 20px 30px;
+            border-radius: 15px; text-align: center; z-index: 300; opacity: 0; pointer-events: none;
+            transition: all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+        }
+        #errorAlert.show { opacity: 1; transform: translate(-50%, -50%) scale(1); }
+        #errorAlert i { font-size: 40px; margin-bottom: 10px; display: block; }
 
         /* --- 右側アクションボタン --- */
         .side-buttons {
@@ -124,11 +155,15 @@
             overflow-y: auto; flex-grow: 1; font-size: 14px; line-height: 1.6;
         }
 
+        /* コメントカードUI強化 */
         .comment-item {
-            display: flex; gap: 12px; margin-bottom: 20px;
+            display: flex; gap: 12px; margin-bottom: 12px;
+            background: var(--comment-card-bg);
+            padding: 12px; border-radius: 12px;
+            border: 1px solid rgba(255,255,255,0.05);
         }
 
-        .comment-author-icon { width: 32px; height: 32px; border-radius: 50%; background: #444; flex-shrink: 0; }
+        .comment-author-icon { width: 32px; height: 32px; border-radius: 50%; background: #444; flex-shrink: 0; overflow: hidden;}
         .comment-main { flex-grow: 1; }
         .comment-user { font-weight: bold; font-size: 12px; margin-bottom: 4px; color: #aaa; }
         .comment-text { font-size: 13px; color: #eee; }
@@ -171,6 +206,14 @@
             <video id="shortVideo" loop autoplay playsinline>
                 <source src="{{ videourls[0] if videourls else '' }}" type="video/mp4">
             </video>
+            <div class="video-state-overlay">
+                <i id="pauseIcon" class="fas fa-pause"></i>
+                <div id="loadingSpinner"></div>
+            </div>
+            <div id="errorAlert">
+                <i class="fas fa-exclamation-triangle"></i>
+                <div>動画の読み込みに失敗しました</div>
+            </div>
         </div>
 
         <div class="side-buttons">
@@ -263,10 +306,19 @@
         const sheet = document.getElementById('descriptionSheet');
         const menu = document.getElementById('moreMenu');
         const overlay = document.getElementById('menuOverlay');
+        const pauseIcon = document.getElementById('pauseIcon');
+        const loadingSpinner = document.getElementById('loadingSpinner');
+        const errorAlert = document.getElementById('errorAlert');
 
         function togglePlay() {
             if (video.paused) { video.play(); } else { video.pause(); }
         }
+
+        // ビデオイベント監視
+        video.onpause = () => { pauseIcon.style.display = 'block'; };
+        video.onplay = () => { pauseIcon.style.display = 'none'; };
+        video.onwaiting = () => { loadingSpinner.style.display = 'block'; };
+        video.onplaying = () => { loadingSpinner.style.display = 'none'; };
 
         // シート管理
         function openSheet(targetTab) {
@@ -321,7 +373,12 @@
             });
         }
 
-        video.onerror = function() { console.error("Video loading failed."); };
+        video.onerror = function() { 
+            console.error("Video loading failed.");
+            loadingSpinner.style.display = 'none';
+            errorAlert.classList.add('show');
+            setTimeout(() => { errorAlert.classList.remove('show'); }, 4000);
+        };
     </script>
 </body>
 </html>
