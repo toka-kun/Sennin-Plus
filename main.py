@@ -379,6 +379,11 @@ async def read_status(request: Request):
 async def subscriptions_page(request: Request):
     return templates.TemplateResponse("subscriptions.html", {"request": request})
 
+@app.get("/bbs", response_class=HTMLResponse)
+async def subscriptions_page(request: Request):
+    return templates.TemplateResponse("bbs.html", {"request": request})
+
+
 
 if __name__ == "__main__":
     import uvicorn
