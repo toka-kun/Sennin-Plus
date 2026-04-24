@@ -129,66 +129,42 @@ async def shorts_player(request: Request, v: str, force_instance: str = Query(No
         return templates.TemplateResponse("apiallerror.html", {"request": request, "instances": INVIDIOUS_INSTANCES})
 
 @app.get("/watch", response_class=HTMLResponse)
-async def watch(request: Request, v: str = Query(...), force_instance: str = Query(None), source: str = Query("invidious")):
+async def watch(request: Request, v: str = Query(...), force_instance: str = Query(None)):
     try:
         # 並列リクエスト
         video_task = fetch_invidious(f"/videos/{v}", force_instance=force_instance)
         comment_task = fetch_invidious(f"/comments/{v}", force_instance=force_instance)
-        
-        # ytdlpが選択された場合のみ追加のタスクを作成
-        if source == "ytdlp":
-            ytdlp_url = f"https://senninytdlp-42jz.vercel.app/stream/{v}"
-            ytdlp_task = client_session.get(ytdlp_url)
-            results = await asyncio.gather(video_task, comment_task, ytdlp_task, return_exceptions=True)
-            video_data, comment_data, ytdlp_resp = results, results, results
-        else:
-            video_data, comment_data = await asyncio.gather(video_task, comment_task, return_exceptions=True)
-            ytdlp_resp = None
+        video_data, comment_data = await asyncio.gather(video_task, comment_task, return_exceptions=True)
 
         if isinstance(video_data, Exception): raise video_data
         
-        stream_urls = []
-        video_urls = []
+        adaptive = video_data.get("adaptiveFormats", [])
+        
+        # 音声URLの選定をnext()とジェネレータで高速化（最初に見つかった時点で終了）
+        audio_url = next((fmt.get("url") for fmt in adaptive if "audio" in fmt.get("type", "") and fmt.get("language") == "ja"), None) \
+                    or next((fmt.get("url") for fmt in adaptive if "audio" in fmt.get("type", "")), None)
 
-        if source == "ytdlp" and not isinstance(ytdlp_resp, Exception) and ytdlp_resp.status_code == 200:
-            # yt-dlp APIからの取得
-            ytdlp_data = ytdlp_resp.json()
-            # 外部APIの形式に合わせてマッピング（例: [{"url":..., "quality":...}]）
-            # ここでは提供されたURLの挙動に基づき、取得したURLをリストに追加
-            stream_url = ytdlp_data.get("url")
-            if stream_url:
-                stream_urls.append({
-                    "url": stream_url,
-                    "resolution": "Best (yt-dlp)",
-                    "format": "mp4/ytdlp",
-                    "audioUrl": ""
-                })
-                video_urls.append(stream_url)
-        else:
-            # Invidiousからの取得（従来通り）
-            adaptive = video_data.get("adaptiveFormats", [])
-            audio_url = next((fmt.get("url") for fmt in adaptive if "audio" in fmt.get("type", "") and fmt.get("language") == "ja"), None) \
-                        or next((fmt.get("url") for fmt in adaptive if "audio" in fmt.get("type", "")), None)
+        # stream_urlsとvideo_urlsの構築を効率化
+        format_streams = video_data.get("formatStreams", [])
+        stream_urls = [{
+            "url": fmt.get("url"),
+            "resolution": fmt.get("qualityLabel"),
+            "format": "mp4/mixed",
+            "audioUrl": ""
+        } for fmt in format_streams]
+        
+        video_urls = [fmt.get("url") for fmt in format_streams]
 
-            format_streams = video_data.get("formatStreams", [])
-            stream_urls = [{
-                "url": fmt.get("url"),
-                "resolution": fmt.get("qualityLabel"),
-                "format": "mp4/mixed",
-                "audioUrl": ""
-            } for fmt in format_streams]
-            
-            video_urls = [fmt.get("url") for fmt in format_streams]
+        # adaptive webmストリームの追加
+        stream_urls.extend({
+            "url": fmt.get("url"),
+            "resolution": fmt.get("qualityLabel"),
+            "format": "webm/videoOnly",
+            "audioUrl": audio_url
+        } for fmt in adaptive if "video" in fmt.get("type", "") and "webm" in fmt.get("container", ""))
 
-            stream_urls.extend({
-                "url": fmt.get("url"),
-                "resolution": fmt.get("qualityLabel"),
-                "format": "webm/videoOnly",
-                "audioUrl": audio_url
-            } for fmt in adaptive if "video" in fmt.get("type", "") and "webm" in fmt.get("container", ""))
-
-            if not video_urls and adaptive:
-                video_urls = [fmt.get("url") for fmt in adaptive if "video" in fmt.get("type", "")]
+        if not video_urls and adaptive:
+            video_urls = [fmt.get("url") for fmt in adaptive if "video" in fmt.get("type", "")]
 
         recommended = [{
             "video_id": rec.get("videoId"),
@@ -285,12 +261,12 @@ async def channel(request: Request, ucid: str, sort_by: str = "newest", tab: str
         
         results = await asyncio.gather(*tasks, return_exceptions=True)
         
-        if isinstance(results, Exception): raise results
+        if isinstance(results[0], Exception): raise results[0]
 
-        channel_data = results
-        shorts_data = results if not isinstance(results, Exception) else {}
-        playlists_data = results if not isinstance(results, Exception) else {}
-        community_data = results if not isinstance(results, Exception) else {}
+        channel_data = results[0]
+        shorts_data = results[1] if not isinstance(results[1], Exception) else {}
+        playlists_data = results[2] if not isinstance(results[2], Exception) else {}
+        community_data = results[3] if not isinstance(results[3], Exception) else {}
 
         playlists = []
         for pl in playlists_data.get("playlists", []):
@@ -406,6 +382,8 @@ async def subscriptions_page(request: Request):
 @app.get("/bbs", response_class=HTMLResponse)
 async def subscriptions_page(request: Request):
     return templates.TemplateResponse("bbs.html", {"request": request})
+
+
 
 if __name__ == "__main__":
     import uvicorn
