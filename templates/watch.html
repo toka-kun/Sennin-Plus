@@ -251,9 +251,10 @@
         .control-item i { font-size: 1.1rem; }
         .source-options { display: none; flex-direction: column; gap: 5px; padding-left: 10px; margin-top: -5px; }
         .source-options.show { display: flex; }
-        .sub-item { font-size: 0.8rem; padding: 8px 12px; border-radius: 8px; background: rgba(0,0,0,0.05); }
+        .sub-item { font-size: 0.8rem; padding: 8px 12px; border-radius: 8px; background: rgba(0,0,0,0.05); cursor: pointer; transition: all 0.2s; }
         @media (prefers-color-scheme: dark) { .sub-item { background: rgba(255,255,255,0.08); } }
         .sub-item.selected { background: var(--primary-color); color: white; }
+        .sub-item:hover:not(.selected) { background: rgba(0,123,255,0.1); }
     </style>
 </head>
 <body>
@@ -302,6 +303,13 @@
             <div class="control-item" onclick="openQualityFromCtrl()">
                 <span>画質選択</span><i class="fas fa-sliders-h"></i>
             </div>
+            <div class="control-item" id="engineToggle" onclick="toggleEngineOptions()">
+                <span>処理エンジン切替</span><i class="fas fa-server"></i>
+            </div>
+            <div class="source-options" id="engineOpts">
+                <div class="sub-item {% if engine == 'invidious' %}selected{% endif %}" id="eng-invidious" onclick="setEngine('invidious')">Invidious API</div>
+                <div class="sub-item {% if engine == 'ytdlp' %}selected{% endif %}" id="eng-ytdlp" onclick="setEngine('ytdlp')">yt-dlp (ローカル)</div>
+            </div>
             <div class="control-item" id="sourceToggle" onclick="toggleSourceOptions()">
                 <span>YouTube切替</span><i class="fab fa-youtube"></i>
             </div>
@@ -320,7 +328,7 @@
         <div class="video-section">
             <div id="player-wrapper">
                 <div id="loader" class="loader-overlay"><div class="custom-loader"></div></div>
-                <video id="video-player" controls autoplay poster="/thumbnail?v={{ videoid }}" src="{{ videourls[0] }}">
+                <video id="video-player" controls autoplay poster="/thumbnail?v={{ videoid }}" src="{{ videourls }}">
                     ブラウザが動画再生に対応していません。
                 </video>
                 <audio id="audio-sync" style="display:none;"></audio>
@@ -342,7 +350,7 @@
                             <i class="fas fa-chevron-down"></i>
                         </div>
                         <div class="custom-options">
-                            <div class="custom-option selected" data-value="{{ videourls[0] }}" data-audio="">自動 (デフォルト)</div>
+                            <div class="custom-option selected" data-value="{{ videourls }}" data-audio="">自動 (デフォルト)</div>
                             {% for stream in streamUrls %}
                             <div class="custom-option" 
                                  data-value="{{ stream.url }}" 
@@ -443,13 +451,32 @@
 
         function toggleSourceOptions() {
             document.getElementById('srcOpts').classList.toggle('show');
+            document.getElementById('engineOpts').classList.remove('show');
+        }
+
+        function toggleEngineOptions() {
+            document.getElementById('engineOpts').classList.toggle('show');
+            document.getElementById('srcOpts').classList.remove('show');
+        }
+
+        function setEngine(engineType) {
+            fetch(`/set_engine?type=${engineType}`)
+                .then(res => res.json())
+                .then(data => {
+                    if (data.status === "success") {
+                        document.querySelectorAll('#engineOpts .sub-item').forEach(i => i.classList.remove('selected'));
+                        document.getElementById('eng-' + engineType).classList.add('selected');
+                        showNotify(`エンジンを ${engineType} に切り替えました。再読み込みで適用されます。`);
+                        setTimeout(() => location.reload(), 1500);
+                    }
+                });
         }
 
         let currentSourceType = 'stream';
         function setExternalSource(type) {
             if (currentSourceType === type) return;
             
-            document.querySelectorAll('.sub-item').forEach(i => i.classList.remove('selected'));
+            document.querySelectorAll('#srcOpts .sub-item').forEach(i => i.classList.remove('selected'));
             document.getElementById('src-' + type).classList.add('selected');
             document.getElementById('sourceToggle').classList.toggle('active', type !== 'stream');
             
@@ -497,6 +524,7 @@
                 selectWrapper.classList.remove('open');
                 document.getElementById('ctrlMenu').style.display = 'none';
                 document.getElementById('srcOpts').classList.remove('show');
+                document.getElementById('engineOpts').classList.remove('show');
             }
         });
 
