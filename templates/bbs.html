@@ -1,4 +1,5 @@
 <!DOCTYPE html>
+<html lang="ja"<!DOCTYPE html>
 <html lang="ja">
 <head>
     <meta charset="UTF-8">
@@ -46,25 +47,55 @@
         .command-list li { margin-bottom: 8px; }
         .code-tag { background: #eee; padding: 2px 6px; border-radius: 4px; font-family: monospace; font-weight: bold; color: #d63384; }
 
-        /* 新規追加スタイル */
-        #adminModal { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.7); z-index: 2000; justify-content: center; align-items: center; }
-        .modal-content { background: white; padding: 30px; border-radius: 15px; width: 300px; text-align: center; }
-        .reply-toggle-btn { font-size: 0.8em; color: var(--primary); cursor: pointer; margin-left: 10px; border: 1px solid var(--primary); padding: 1px 5px; border-radius: 4px; }
+        /* 利用規約モーダル用追加スタイル */
+        #tosModal { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.8); display: flex; align-items: center; justify-content: center; z-index: 9999; }
+        .tos-content { background: white; padding: 30px; border-radius: 15px; max-width: 600px; width: 90%; max-height: 85vh; overflow-y: auto; box-shadow: 0 10px 25px rgba(0,0,0,0.5); }
+        .tos-content h2 { margin-top: 0; color: #2c3e50; border-bottom: 2px solid var(--primary); padding-bottom: 10px; }
+        .tos-body { font-size: 0.85em; line-height: 1.7; margin-bottom: 20px; color: #444; }
+        .tos-body h4 { margin: 15px 0 5px 0; color: #333; }
+        .tos-btn { width: 100%; padding: 15px; background: var(--primary); color: white; border: none; border-radius: 8px; font-weight: bold; cursor: pointer; transition: opacity 0.2s; }
+        .tos-btn:hover { opacity: 0.9; }
+
+        /* 返信制御 */
+        .reply-toggle { font-size: 0.75em; color: #999; cursor: pointer; margin-left: 10px; text-decoration: underline; }
         .replies-container.hidden { display: none; }
     </style>
 </head>
-<body ondblclick="showAdminModal()">
+<body ondblclick="adminLogin()">
 
-    <div id="notificationCenter"></div>
+    <div id="tosModal" style="display: none;">
+        <div class="tos-content">
+            <h2>📜 サービス利用規約 (Terms of Service)</h2>
+            <div class="tos-body">
+                <p>本規約は、当掲示板（以下「本サービス」）の利用条件を定めるものです。ユーザーは本規約の全条項に同意した上で利用するものとします。</p>
+                
+                <h4>第1条（禁止事項）</h4>
+                <ul>
+                    <li>特定の個人、団体に対する誹謗中傷、名誉毀損、嫌がらせ行為。</li>
+                    <li>公序良俗に反する投稿、及び反社会的勢力に関連する情報の送受信。</li>
+                    <li>スパム行為、連続投稿、サーバー負荷を著しく高める行為。</li>
+                    <li>その他、管理者が不適切と判断する全ての行為。</li>
+                </ul>
 
-    <div id="adminModal" onclick="closeAdminModal(event)">
-        <div class="modal-content" onclick="event.stopPropagation()">
-            <h3>管理者ログイン</h3>
-            <input type="password" id="adminPassInput" placeholder="パスワードを入力">
-            <button onclick="adminLogin()">ログイン</button>
-            <button onclick="closeAdminModal(event)" style="background:#999; margin-top:5px;">キャンセル</button>
+                <h4>第2条（免責事項）</h4>
+                <ul>
+                    <li>本サービスにおける投稿内容について、管理者は一切の責任を負いません。</li>
+                    <li>システム障害、メンテナンス等による利用停止により発生した損害の補償は致しません。</li>
+                    <li>ユーザー間のトラブルは当事者間で解決するものとし、管理者は介入義務を負いません。</li>
+                </ul>
+
+                <h4>第3条（権利と管理）</h4>
+                <ul>
+                    <li>管理者は事前の通知なく、投稿の削除、IP制限（BAN）、ミュート処置を行う権利を有します。</li>
+                    <li>本規約は予告なく変更される場合があり、変更後の利用を継続することで同意したものとみなされます。</li>
+                </ul>
+                <p>同意ボタンを押下すると、あなたのIPアドレスが記録され、規約に同意したものと法的にみなされます。</p>
+            </div>
+            <button class="tos-btn" onclick="agreeTos()">規約に同意して利用を開始する</button>
         </div>
     </div>
+
+    <div id="notificationCenter"></div>
 
     <div class="form-card">
         <h2 id="title">掲示板</h2>
@@ -94,17 +125,27 @@
     </div>
 
     <script>
-        // 1. Firebase初期化
+        // 利用規約チェック
+        function checkTos() {
+            if (!localStorage.getItem('tos_agreed')) {
+                document.getElementById('tosModal').style.display = 'flex';
+            }
+        }
+        function agreeTos() {
+            localStorage.setItem('tos_agreed', 'true');
+            document.getElementById('tosModal').style.display = 'none';
+        }
+
+        // 1. Firebase初期化を即座に行う
         const firebaseConfig = {
-            apiKey: "AIzaSyCzqDGRhKOOm6Y8gjP3-44aFTA3k5uwrUg",
-            authDomain: "senninbbs.firebaseapp.com",
-            databaseURL: "https://senninbbs-default-rtdb.firebaseio.com",
-            projectId: "senninbbs",
-            storageBucket: "senninbbs.firebasestorage.app",
-            messagingSenderId: "1010317855305",
-            appId: "1:1010317855305:web:897af1885be2cdcf470d98",
-            measurementId: "G-429TJW7LNR"
-        };
+    apiKey: "AIzaSyCsMzomf4SDe0LVl8vgUIvtof1CIgGlTqE",
+    authDomain: "bbsdb2.firebaseapp.com",
+    databaseURL: "https://bbsdb2-default-rtdb.firebaseio.com",
+    projectId: "bbsdb2",
+    storageBucket: "bbsdb2.firebasestorage.app",
+    messagingSenderId: "764305660360",
+    appId: "1:764305660360:web:88424159d61d63bd19c8fd"
+  };
         firebase.initializeApp(firebaseConfig);
         const db = firebase.database();
 
@@ -139,25 +180,14 @@
         };
         document.getElementById('nameInput').value = getCookie('user_name') || "";
 
-        function showAdminModal() {
-            document.getElementById('adminModal').style.display = 'flex';
-        }
-
-        function closeAdminModal(e) {
-            document.getElementById('adminModal').style.display = 'none';
-        }
-
         function adminLogin() {
-            const pass = document.getElementById('adminPassInput').value;
+            const pass = prompt("管理者パスワードを入力してください:");
             if (pass === "sennin123") {
                 isAdmin = true;
                 document.body.classList.add('admin-mode');
                 document.getElementById('title').innerText = "管理者モード";
                 pushNotice("管理者としてログインしました");
-                closeAdminModal();
                 renderFeed();
-            } else {
-                alert("パスワードが違います");
             }
         }
 
@@ -172,7 +202,7 @@
             return `${Math.floor(hour / 24)}日前`;
         }
 
-        // 4. 投稿処理
+        // 4. 投稿処理 (iPadで確実に動くようPromise形式で)
         document.getElementById('postForm').onsubmit = function(e) {
             e.preventDefault();
 
@@ -206,7 +236,7 @@
                 const parts = content.split(" ");
                 if (parts.length >= 3) {
                     poll = { options: [ {text: parts, votes: 0}, {text: parts, votes: 0} ] };
-                    content = "【アンケート】 " + (parts + " vs " + parts);
+                    content = "【アンケート】 " + (parts || "");
                 }
             }
             if (content.includes("/onetime")) {
@@ -241,12 +271,15 @@
         };
 
         function addReaction(key, emoji) {
-            const reactionKey = 'reacted_' + key + '_' + emoji;
-            try {
-                if (localStorage.getItem(reactionKey)) { pushNotice("このリアクションは既に送信済みです"); return; }
-                db.ref(`messages/${key}/reactions/${emoji}`).transaction(count => (count || 0) + 1);
-                localStorage.setItem(reactionKey, "true");
-            } catch(e) {}
+            const reactionKey = `reacted_${key}_${emoji}`;
+            if (localStorage.getItem(reactionKey)) {
+                pushNotice("このリアクションは既に行っています");
+                return;
+            }
+            db.ref(`messages/${key}/reactions/${emoji}`).transaction(count => {
+                if (count !== null) localStorage.setItem(reactionKey, "true");
+                return (count || 0) + 1;
+            });
         }
 
         function votePoll(msgKey, optIdx) {
@@ -268,19 +301,20 @@
             if (confirm(`IP: ${ip} をミュートしますか？`)) db.ref('mutes/' + ip.replace(/\./g, '_')).set(true);
         }
 
+        // 返信表示切り替え機能
         function toggleReplies(id) {
-            const container = document.querySelector(`#post-${id} .replies-container`);
-            const btn = document.querySelector(`#post-${id} .reply-toggle-btn`);
+            const container = document.getElementById('replies-' + id);
+            const btn = document.getElementById('toggle-btn-' + id);
             if (container.classList.contains('hidden')) {
                 container.classList.remove('hidden');
-                btn.innerText = "返信を隠す";
+                btn.innerText = "▲ 返信を隠す";
             } else {
                 container.classList.add('hidden');
-                btn.innerText = "返信を表示";
+                btn.innerText = "▼ 返信を表示";
             }
         }
 
-        // 5. 描画処理
+        // 5. 描画処理 (Safariで落ちないようにDOM生成を丁寧に)
         function renderFeed() {
             db.ref('mutes').once('value').then(mSnap => {
                 const mutes = mSnap.val() || {};
@@ -337,14 +371,14 @@
                                     ${msg.isAdminPost ? `<span class="badge admin-badge">ADMIN</span>` : ''}
                                     ${msg.isPrivate ? `<span class="badge">PRIVATE: ${msg.commandStr}</span>` : ''}
                                     <span class="post-time">${getRelativeTime(msg.timestamp)}</span>
-                                    <span class="reply-toggle-btn" style="display:none;" onclick="toggleReplies('${key}')">返信を表示</span>
+                                    ${!msg.reply_to ? `<span id="toggle-btn-${key}" class="reply-toggle" onclick="toggleReplies('${key}')">▼ 返信を表示</span>` : ''}
                                 </div>
                                 <span style="color:var(--primary);cursor:pointer;text-decoration:underline;font-size:0.8em" onclick="setReply('${key}')">返信する</span>
                             </div>
                             <div>${displayContent}</div>
                             ${pollHtml}
                             ${reactHtml}
-                            <div class="replies-container"></div>
+                            <div class="replies-container ${!msg.reply_to ? 'hidden' : ''}" id="replies-${key}"></div>
                             <div class="admin-only">
                                 <button class="delete-btn" onclick="deleteMsg('${key}')">削除</button>
                                 <button class="delete-btn" style="background:#f39c12" onclick="adminMute('${msg.ip}')">ミュート</button>
@@ -360,18 +394,10 @@
                         if (!el) return;
                         const msg = data[key];
                         if (msg.reply_to && postElements[msg.reply_to]) {
-                            const parent = postElements[msg.reply_to];
-                            const container = parent.querySelector('.replies-container');
-                            const toggleBtn = parent.querySelector('.reply-toggle-btn');
-                            
+                            const container = postElements[msg.reply_to].querySelector('.replies-container');
                             el.classList.add('reply-section');
                             el.classList.remove('post-card');
-                            if(container) {
-                                container.appendChild(el);
-                                toggleBtn.style.display = 'inline-block';
-                                // 初期状態は非表示
-                                if(!container.classList.contains('hidden') && !isAdmin) container.classList.add('hidden');
-                            }
+                            if(container) container.appendChild(el);
                         } else {
                             feed.insertBefore(el, feed.firstChild);
                         }
@@ -384,6 +410,7 @@
 
         // 初期実行
         window.onload = () => {
+            checkTos(); // 利用規約チェックを追加
             renderFeed();
             db.ref('admin_notices').limitToLast(1).on('child_added', (snap) => {
                 if (isAdmin && snap.val().time > Date.now() - 3000) pushNotice("【管理通知】" + snap.val().text);
