@@ -45,11 +45,26 @@
         .command-list { list-style: none; padding: 0; }
         .command-list li { margin-bottom: 8px; }
         .code-tag { background: #eee; padding: 2px 6px; border-radius: 4px; font-family: monospace; font-weight: bold; color: #d63384; }
+
+        /* 新規追加スタイル */
+        #adminModal { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.7); z-index: 2000; justify-content: center; align-items: center; }
+        .modal-content { background: white; padding: 30px; border-radius: 15px; width: 300px; text-align: center; }
+        .reply-toggle-btn { font-size: 0.8em; color: var(--primary); cursor: pointer; margin-left: 10px; border: 1px solid var(--primary); padding: 1px 5px; border-radius: 4px; }
+        .replies-container.hidden { display: none; }
     </style>
 </head>
-<body ondblclick="adminLogin()">
+<body ondblclick="showAdminModal()">
 
     <div id="notificationCenter"></div>
+
+    <div id="adminModal" onclick="closeAdminModal(event)">
+        <div class="modal-content" onclick="event.stopPropagation()">
+            <h3>管理者ログイン</h3>
+            <input type="password" id="adminPassInput" placeholder="パスワードを入力">
+            <button onclick="adminLogin()">ログイン</button>
+            <button onclick="closeAdminModal(event)" style="background:#999; margin-top:5px;">キャンセル</button>
+        </div>
+    </div>
 
     <div class="form-card">
         <h2 id="title">掲示板</h2>
@@ -61,7 +76,7 @@
                 返信先: #<span id="replyTargetId"></span> <span onclick="clearReply()" style="cursor:pointer; color:red;">[取消]</span>
             </div>
             <textarea id="contentInput" rows="3" placeholder="メッセージを入力..." required></textarea>
-            <button type="submit" id="submitBtn">取得中...</button>
+            <button type="submit" id="submitBtn">送信する</button>
         </form>
     </div>
 
@@ -79,6 +94,7 @@
     </div>
 
     <script>
+        // 1. Firebase初期化
         const firebaseConfig = {
             apiKey: "AIzaSyCzqDGRhKOOm6Y8gjP3-44aFTA3k5uwrUg",
             authDomain: "senninbbs.firebaseapp.com",
@@ -91,62 +107,57 @@
         };
         firebase.initializeApp(firebaseConfig);
         const db = firebase.database();
+
+        // 2. 変数宣言
         let isAdmin = false;
-        let viewKey = null;
-        let lastReadTimestamp = localStorage.getItem('lastRead') || 0;
-        let myIp = null;
+        let viewKey = "";
+        let lastReadTimestamp = 0;
+        try {
+            const stored = localStorage.getItem('lastRead');
+            lastReadTimestamp = stored ? parseInt(stored) : 0;
+        } catch(e) {}
+        let myIp = "anonymous";
 
-        // IP取得処理
-        async function fetchIp() {
-            try {
-                // 複数のサービスを試行して確実に取得する
-                const response = await fetch('https://api.ipify.org?format=json');
-                const data = await response.json();
-                myIp = data.ip;
-                document.getElementById('submitBtn').innerText = "送信する";
-            } catch (e) {
-                console.error("IP取得失敗:", e);
-                // フォールバック
-                try {
-                    const res2 = await fetch('https://inet-ip.info/json');
-                    const data2 = await res2.json();
-                    myIp = data2.ip;
-                    document.getElementById('submitBtn').innerText = "送信する";
-                } catch (e2) {
-                    document.getElementById('submitBtn').innerText = "IP取得失敗(リロードしてください)";
-                    document.getElementById('submitBtn').disabled = true;
-                }
-            }
-        }
-        fetchIp();
-
-        // 通知許可
-        if (Notification.permission !== "granted") Notification.requestPermission();
-
+        // 3. 基本機能
         function pushNotice(text) {
             const container = document.getElementById('notificationCenter');
+            if(!container) return;
             const div = document.createElement('div');
             div.className = 'notice-item';
             div.innerText = text;
             container.appendChild(div);
-            setTimeout(() => div.remove(), 5000);
+            setTimeout(() => { if(div.parentNode) div.remove(); }, 5000);
         }
 
         const getCookie = (name) => {
-            const value = `; ${document.cookie}`;
-            const parts = value.split(`; ${name}=`);
-            if (parts.length === 2) return decodeURIComponent(parts.pop().split(';').shift());
+            try {
+                const value = `; ${document.cookie}`;
+                const parts = value.split(`; ${name}=`);
+                if (parts.length === 2) return decodeURIComponent(parts.pop().split(';').shift());
+            } catch(e) {}
+            return "";
         };
         document.getElementById('nameInput').value = getCookie('user_name') || "";
 
+        function showAdminModal() {
+            document.getElementById('adminModal').style.display = 'flex';
+        }
+
+        function closeAdminModal(e) {
+            document.getElementById('adminModal').style.display = 'none';
+        }
+
         function adminLogin() {
-            const pass = prompt("管理者パスワードを入力してください:");
+            const pass = document.getElementById('adminPassInput').value;
             if (pass === "sennin123") {
                 isAdmin = true;
                 document.body.classList.add('admin-mode');
                 document.getElementById('title').innerText = "管理者モード";
                 pushNotice("管理者としてログインしました");
+                closeAdminModal();
                 renderFeed();
+            } else {
+                alert("パスワードが違います");
             }
         }
 
@@ -161,30 +172,31 @@
             return `${Math.floor(hour / 24)}日前`;
         }
 
-        document.getElementById('postForm').onsubmit = async (e) => {
+        // 4. 投稿処理
+        document.getElementById('postForm').onsubmit = function(e) {
             e.preventDefault();
-            if (!myIp) { alert("IP取得を待っています..."); return; }
 
             const name = document.getElementById('nameInput').value || "名無しさん";
             let content = document.getElementById('contentInput').value;
             const reply_to = document.getElementById('replyToInput').value || null;
 
-            // BANチェック
-            const banSnap = await db.ref('bans/' + myIp.replace(/\./g, '_')).get();
-            if (banSnap.exists()) { alert("アクセスが制限されています。"); return; }
-
             if (content.startsWith("/w ")) {
-                viewKey = content.split(" ");
+                viewKey = content.split(" ") || "";
                 document.getElementById('contentInput').value = "";
                 pushNotice(`${viewKey} 宛のメッセージを表示します`);
-                renderFeed(); return;
+                renderFeed(); 
+                return;
             }
 
             let isPrivate = false, commandStr = null, expiresAt = null, dice = null, poll = null;
 
             if (content.startsWith("/p ")) {
-                const parts = content.split(" ", 3);
-                if (parts.length >= 3) { isPrivate = true; commandStr = parts; content = parts; }
+                const parts = content.split(" ");
+                if (parts.length >= 3) { 
+                    isPrivate = true; 
+                    commandStr = parts; 
+                    content = parts.slice(2).join(" "); 
+                }
             }
             if (content.includes("/dice")) {
                 dice = Math.floor(Math.random() * 100) + 1;
@@ -194,7 +206,7 @@
                 const parts = content.split(" ");
                 if (parts.length >= 3) {
                     poll = { options: [ {text: parts, votes: 0}, {text: parts, votes: 0} ] };
-                    content = "【アンケート】";
+                    content = "【アンケート】 " + (parts + " vs " + parts);
                 }
             }
             if (content.includes("/onetime")) {
@@ -202,147 +214,182 @@
                 content = content.replace("/onetime", "(一時的投稿)");
             }
 
-            db.ref('messages').push({
-                name, content, reply_to, isPrivate, commandStr, expiresAt, dice, poll,
-                isAdminPost: isAdmin, timestamp: Date.now(), reactions: {}, ip: myIp
-            });
+            const data = {
+                name: name,
+                content: content,
+                reply_to: reply_to,
+                isPrivate: isPrivate,
+                commandStr: commandStr,
+                expiresAt: expiresAt,
+                dice: dice,
+                poll: poll,
+                isAdminPost: isAdmin,
+                timestamp: Date.now(),
+                reactions: { "👍":0, "❤️":0, "😂":0, "😮":0 },
+                ip: myIp
+            };
 
-            if (!isAdmin) db.ref('admin_notices').push({ text: `${name}が投稿しました`, time: Date.now() });
+            db.ref('messages').push(data)
+                .then(() => {
+                    if (!isAdmin) db.ref('admin_notices').push({ text: `${name}が投稿しました`, time: Date.now() });
+                    document.getElementById('contentInput').value = "";
+                    clearReply();
+                })
+                .catch((err) => { alert("通信エラー: " + err.message); });
 
-            document.cookie = `user_name=${encodeURIComponent(name)}; max-age=${60*60*24*30}; path=/`;
-            document.getElementById('contentInput').value = "";
-            clearReply();
+            try { document.cookie = `user_name=${encodeURIComponent(name)}; max-age=${60*60*24*30}; path=/`; } catch(e) {}
         };
 
         function addReaction(key, emoji) {
-            db.ref(`messages/${key}/reactions/${emoji}`).transaction(count => (count || 0) + 1);
+            const reactionKey = 'reacted_' + key + '_' + emoji;
+            try {
+                if (localStorage.getItem(reactionKey)) { pushNotice("このリアクションは既に送信済みです"); return; }
+                db.ref(`messages/${key}/reactions/${emoji}`).transaction(count => (count || 0) + 1);
+                localStorage.setItem(reactionKey, "true");
+            } catch(e) {}
         }
 
         function votePoll(msgKey, optIdx) {
             const votedKey = 'voted_' + msgKey;
-            if (localStorage.getItem(votedKey)) { pushNotice("投票は1回までです"); return; }
-            db.ref(`messages/${msgKey}/poll/options/${optIdx}/votes`).transaction(count => (count || 0) + 1);
-            localStorage.setItem(votedKey, "true");
+            try {
+                if (localStorage.getItem(votedKey)) { pushNotice("投票は1回までです"); return; }
+                db.ref(`messages/${msgKey}/poll/options/${optIdx}/votes`).transaction(count => (count || 0) + 1);
+                localStorage.setItem(votedKey, "true");
+            } catch(e) {}
         }
 
         function adminBan(ip) {
-            if (!isAdmin) return;
-            if (!ip) return;
-            if (confirm(`IP: ${ip} をBANしますか？`)) {
-                db.ref('bans/' + ip.replace(/\./g, '_')).set(true);
-            }
+            if (!isAdmin || !ip) return;
+            if (confirm(`IP: ${ip} をBANしますか？`)) db.ref('bans/' + ip.replace(/\./g, '_')).set(true);
         }
 
         function adminMute(ip) {
-            if (!isAdmin) return;
-            if (!ip) return;
-            if (confirm(`IP: ${ip} をミュートしますか？`)) {
-                db.ref('mutes/' + ip.replace(/\./g, '_')).set(true);
+            if (!isAdmin || !ip) return;
+            if (confirm(`IP: ${ip} をミュートしますか？`)) db.ref('mutes/' + ip.replace(/\./g, '_')).set(true);
+        }
+
+        function toggleReplies(id) {
+            const container = document.querySelector(`#post-${id} .replies-container`);
+            const btn = document.querySelector(`#post-${id} .reply-toggle-btn`);
+            if (container.classList.contains('hidden')) {
+                container.classList.remove('hidden');
+                btn.innerText = "返信を隠す";
+            } else {
+                container.classList.add('hidden');
+                btn.innerText = "返信を表示";
             }
         }
 
-        async function renderFeed() {
-            const mutesSnap = await db.ref('mutes').get();
-            const mutes = mutesSnap.val() || {};
+        // 5. 描画処理
+        function renderFeed() {
+            db.ref('mutes').once('value').then(mSnap => {
+                const mutes = mSnap.val() || {};
+                db.ref('messages').on('value', (snapshot) => {
+                    const feed = document.getElementById('feed');
+                    if(!feed) return;
+                    feed.innerHTML = "";
+                    const data = snapshot.val();
+                    if (!data) return;
 
-            db.ref('messages').once('value', (snapshot) => {
-                const feed = document.getElementById('feed');
-                feed.innerHTML = "";
-                const data = snapshot.val();
-                if (!data) return;
+                    const postElements = {};
+                    const sortedIds = Object.keys(data).sort((a, b) => data[b].timestamp - data[a].timestamp);
+                    let maxTimestamp = 0;
 
-                const postElements = {};
-                const sortedIds = Object.keys(data).sort((a, b) => data[b].timestamp - data[a].timestamp);
-                let maxTimestamp = 0;
+                    sortedIds.forEach(key => {
+                        const msg = data[key];
+                        if (msg.expiresAt && msg.expiresAt < Date.now()) return;
+                        if (msg.ip && mutes[msg.ip.replace(/\./g, '_')] && !isAdmin) return;
 
-                sortedIds.forEach(key => {
-                    const msg = data[key];
-                    if (msg.expiresAt && msg.expiresAt < Date.now()) return;
-                    
-                    // ミュートIPチェック
-                    if (msg.ip && mutes[msg.ip.replace(/\./g, '_')] && !isAdmin) return;
+                        const canSee = isAdmin || !msg.isPrivate || (msg.isPrivate && msg.commandStr === viewKey);
+                        if (!canSee) return;
 
-                    const canSee = isAdmin || !msg.isPrivate || (msg.isPrivate && msg.commandStr === viewKey);
-                    if (!canSee) return;
+                        maxTimestamp = Math.max(maxTimestamp, msg.timestamp);
+                        const isNew = msg.timestamp > lastReadTimestamp;
+                        
+                        const div = document.createElement('div');
+                        div.className = `post-card ${isNew ? 'new-post-highlight' : ''}`;
+                        div.id = 'post-' + key;
 
-                    maxTimestamp = Math.max(maxTimestamp, msg.timestamp);
-                    const isNew = msg.timestamp > lastReadTimestamp;
-                    const myName = document.getElementById('nameInput').value;
-                    
-                    if (isNew && myName && msg.content.includes(`@${myName}`)) {
-                        pushNotice(`@${myName} さんにメンションが届きました`);
-                        if (Notification.permission === "granted") new Notification("メンション通知", {body: msg.content});
-                    }
+                        let displayContent = (msg.content || "").replace(/@(\S+)/g, '<span class="mention">@$1</span>');
+                        
+                        let pollHtml = "";
+                        if (msg.poll && msg.poll.options) {
+                            const total = msg.poll.options.reduce((a, b) => a + (b.votes || 0), 0);
+                            pollHtml = `<div class="poll-container">` + msg.poll.options.map((opt, i) => {
+                                const pct = total > 0 ? ((opt.votes || 0) / total * 100) : 0;
+                                return `<div class="poll-option" onclick="votePoll('${key}', ${i})">
+                                    <div class="poll-bar" style="width:${pct}%"></div>
+                                    <div class="poll-text"><span>${opt.text}</span><span>${opt.votes || 0}票</span></div>
+                                </div>`;
+                            }).join('') + `</div>`;
+                        }
 
-                    const div = document.createElement('div');
-                    div.className = `post-card ${isNew ? 'new-post-highlight' : ''}`;
-                    div.id = 'post-' + key;
+                        let reactHtml = `<div class="reaction-bar">` + 
+                            ['👍', '❤️', '😂', '😮'].map(e => {
+                                const count = (msg.reactions && msg.reactions[e]) ? msg.reactions[e] : 0;
+                                return `<button class="reaction-btn" onclick="addReaction('${key}', '${e}')">${e} ${count}</button>`;
+                            }).join('') + `</div>`;
 
-                    let displayContent = msg.content.replace(/@(\S+)/g, '<span class="mention">@$1</span>');
-                    
-                    let pollHtml = "";
-                    if (msg.poll) {
-                        const total = msg.poll.options.reduce((a, b) => a + b.votes, 0);
-                        pollHtml = `<div class="poll-container">` + msg.poll.options.map((opt, i) => {
-                            const pct = total > 0 ? (opt.votes / total * 100) : 0;
-                            return `<div class="poll-option" onclick="votePoll('${key}', ${i})">
-                                <div class="poll-bar" style="width:${pct}%"></div>
-                                <div class="poll-text"><span>${opt.text}</span><span>${opt.votes}票</span></div>
-                            </div>`;
-                        }).join('') + `</div>`;
-                    }
-
-                    let reactHtml = `<div class="reaction-bar">` + 
-                        ['👍', '❤️', '😂', '😮'].map(e => `<button class="reaction-btn" onclick="addReaction('${key}', '${e}')">${e} ${msg.reactions?.[e] || 0}</button>`).join('') + 
-                        `</div>`;
-
-                    div.innerHTML = `
-                        <div class="post-header">
-                            <div>
-                                <span class="post-name">${msg.name}</span>
-                                ${msg.isAdminPost ? `<span class="badge admin-badge">ADMIN</span>` : ''}
-                                ${msg.isPrivate ? `<span class="badge">PRIVATE: ${msg.commandStr}</span>` : ''}
-                                <span class="post-time">${getRelativeTime(msg.timestamp)}</span>
+                        div.innerHTML = `
+                            <div class="post-header">
+                                <div>
+                                    <span class="post-name">${msg.name}</span>
+                                    ${msg.isAdminPost ? `<span class="badge admin-badge">ADMIN</span>` : ''}
+                                    ${msg.isPrivate ? `<span class="badge">PRIVATE: ${msg.commandStr}</span>` : ''}
+                                    <span class="post-time">${getRelativeTime(msg.timestamp)}</span>
+                                    <span class="reply-toggle-btn" style="display:none;" onclick="toggleReplies('${key}')">返信を表示</span>
+                                </div>
+                                <span style="color:var(--primary);cursor:pointer;text-decoration:underline;font-size:0.8em" onclick="setReply('${key}')">返信する</span>
                             </div>
-                            <span style="color:var(--primary);cursor:pointer;text-decoration:underline;font-size:0.8em" onclick="setReply('${key}')">返信する</span>
-                        </div>
-                        <div>${displayContent}</div>
-                        ${pollHtml}
-                        ${reactHtml}
-                        <div class="replies-container"></div>
-                        <div class="admin-only">
-                            <button class="delete-btn" onclick="deleteMsg('${key}')">削除</button>
-                            <button class="delete-btn" style="background:#f39c12" onclick="adminMute('${msg.ip}')">ミュート</button>
-                            <button class="delete-btn" style="background:#000" onclick="adminBan('${msg.ip}')">IPBAN</button>
-                            <span style="font-size:0.7em; color:#ccc;">IP: ${msg.ip || '不明'}</span>
-                        </div>
-                    `;
-                    postElements[key] = div;
-                });
+                            <div>${displayContent}</div>
+                            ${pollHtml}
+                            ${reactHtml}
+                            <div class="replies-container"></div>
+                            <div class="admin-only">
+                                <button class="delete-btn" onclick="deleteMsg('${key}')">削除</button>
+                                <button class="delete-btn" style="background:#f39c12" onclick="adminMute('${msg.ip}')">ミュート</button>
+                                <button class="delete-btn" style="background:#000" onclick="adminBan('${msg.ip}')">IPBAN</button>
+                                <span style="font-size:0.7em; color:#ccc;">IP: ${msg.ip || '不明'}</span>
+                            </div>
+                        `;
+                        postElements[key] = div;
+                    });
 
-                sortedIds.reverse().forEach(key => {
-                    const el = postElements[key];
-                    if (!el) return;
-                    const msg = data[key];
-                    if (msg.reply_to && postElements[msg.reply_to]) {
-                        const container = postElements[msg.reply_to].querySelector('.replies-container');
-                        el.classList.add('reply-section');
-                        el.classList.remove('post-card');
-                        container.appendChild(el);
-                    } else {
-                        feed.insertBefore(el, feed.firstChild);
-                    }
-                });
+                    sortedIds.reverse().forEach(key => {
+                        const el = postElements[key];
+                        if (!el) return;
+                        const msg = data[key];
+                        if (msg.reply_to && postElements[msg.reply_to]) {
+                            const parent = postElements[msg.reply_to];
+                            const container = parent.querySelector('.replies-container');
+                            const toggleBtn = parent.querySelector('.reply-toggle-btn');
+                            
+                            el.classList.add('reply-section');
+                            el.classList.remove('post-card');
+                            if(container) {
+                                container.appendChild(el);
+                                toggleBtn.style.display = 'inline-block';
+                                // 初期状態は非表示
+                                if(!container.classList.contains('hidden') && !isAdmin) container.classList.add('hidden');
+                            }
+                        } else {
+                            feed.insertBefore(el, feed.firstChild);
+                        }
+                    });
 
-                localStorage.setItem('lastRead', maxTimestamp);
+                    try { localStorage.setItem('lastRead', maxTimestamp); } catch(e) {}
+                });
             });
         }
 
-        db.ref('admin_notices').limitToLast(1).on('child_added', (snap) => {
-            if (isAdmin && snap.val().time > Date.now() - 3000) pushNotice("【管理通知】" + snap.val().text);
-        });
+        // 初期実行
+        window.onload = () => {
+            renderFeed();
+            db.ref('admin_notices').limitToLast(1).on('child_added', (snap) => {
+                if (isAdmin && snap.val().time > Date.now() - 3000) pushNotice("【管理通知】" + snap.val().text);
+            });
+        };
 
-        db.ref('messages').on('value', renderFeed);
         function deleteMsg(key) { if(confirm("削除しますか？")) db.ref('messages/'+key).remove(); }
         function setReply(id) {
             document.getElementById('replyToInput').value = id;
