@@ -131,7 +131,7 @@ async def shorts_player(request: Request, v: str, force_instance: str = Query(No
 @app.get("/watch", response_class=HTMLResponse)
 async def watch(request: Request, v: str = Query(...), force_instance: str = Query(None)):
     try:
-        # 並列リクエスト
+        # 並列リクエストの最適化
         video_task = fetch_invidious(f"/videos/{v}", force_instance=force_instance)
         comment_task = fetch_invidious(f"/comments/{v}", force_instance=force_instance)
         video_data, comment_data = await asyncio.gather(video_task, comment_task, return_exceptions=True)
@@ -140,12 +140,13 @@ async def watch(request: Request, v: str = Query(...), force_instance: str = Que
         
         adaptive = video_data.get("adaptiveFormats", [])
         
-        # 音声URLの選定をnext()とジェネレータで高速化（最初に見つかった時点で終了）
-        audio_url = next((fmt.get("url") for fmt in adaptive if "audio" in fmt.get("type", "") and fmt.get("language") == "ja"), None) \
-                    or next((fmt.get("url") for fmt in adaptive if "audio" in fmt.get("type", "")), None)
+        # 音声URLの選定を高速化（日本語優先で見つかり次第終了）
+        audio_url = next((fmt.get("url") for fmt in adaptive if "audio" in fmt.get("type", "") and fmt.get("language") == "ja"), None) or \
+                    next((fmt.get("url") for fmt in adaptive if "audio" in fmt.get("type", "")), None)
 
-        # stream_urlsとvideo_urlsの構築を効率化
         format_streams = video_data.get("formatStreams", [])
+        
+        # stream_urlsの構築（混合ストリーム + webmアダプティブストリーム）
         stream_urls = [{
             "url": fmt.get("url"),
             "resolution": fmt.get("qualityLabel"),
@@ -153,9 +154,6 @@ async def watch(request: Request, v: str = Query(...), force_instance: str = Que
             "audioUrl": ""
         } for fmt in format_streams]
         
-        video_urls = [fmt.get("url") for fmt in format_streams]
-
-        # adaptive webmストリームの追加
         stream_urls.extend({
             "url": fmt.get("url"),
             "resolution": fmt.get("qualityLabel"),
@@ -163,6 +161,7 @@ async def watch(request: Request, v: str = Query(...), force_instance: str = Que
             "audioUrl": audio_url
         } for fmt in adaptive if "video" in fmt.get("type", "") and "webm" in fmt.get("container", ""))
 
+        video_urls = [fmt.get("url") for fmt in format_streams]
         if not video_urls and adaptive:
             video_urls = [fmt.get("url") for fmt in adaptive if "video" in fmt.get("type", "")]
 
@@ -173,6 +172,10 @@ async def watch(request: Request, v: str = Query(...), force_instance: str = Que
             "view_count_text": rec.get("viewCountText")
         } for rec in video_data.get("recommendedVideos", [])]
 
+        # 著者アイコンの取得を安全かつ高速に
+        author_thumbs = video_data.get("authorThumbnails", [])
+        author_icon = author_thumbs[-1]["url"] if author_thumbs else ""
+
         response = templates.TemplateResponse("watch.html", {
             "request": request,
             "videoid": v,
@@ -181,7 +184,7 @@ async def watch(request: Request, v: str = Query(...), force_instance: str = Que
             "streamUrls": stream_urls,
             "author": video_data.get("author"),
             "author_id": video_data.get("authorId"),
-            "author_icon": video_data.get("authorThumbnails", [{"url": ""}])[-1]["url"],
+            "author_icon": author_icon,
             "subscribers_count": video_data.get("subCountText", "非公開"),
             "view_count": video_data.get("viewCount", 0),
             "like_count": video_data.get("likeCount", 0),
@@ -190,7 +193,7 @@ async def watch(request: Request, v: str = Query(...), force_instance: str = Que
             "comments": comment_data.get("comments", []) if not isinstance(comment_data, Exception) else []
         })
 
-        # クッキー履歴処理
+        # クッキー履歴処理（最小限の計算）
         history_cookie = request.cookies.get("history", "[]")
         try:
             history = json.loads(history_cookie)
@@ -382,8 +385,6 @@ async def subscriptions_page(request: Request):
 @app.get("/bbs", response_class=HTMLResponse)
 async def subscriptions_page(request: Request):
     return templates.TemplateResponse("bbs.html", {"request": request})
-
-
 
 if __name__ == "__main__":
     import uvicorn
