@@ -27,8 +27,9 @@ INVIDIOUS_INSTANCES = [
     'https://iv.duti.dev/',
 ]
 
-# 高速化のためにAsyncClientをグローバルに保持（コネクションプーリング）
-client_session = httpx.AsyncClient(timeout=15.0)
+# 高速化のためにAsyncClientをグローバルに保持（コネクションプーリングとリミットの最適化）
+limits = httpx.Limits(max_connections=100, max_keepalive_connections=20)
+client_session = httpx.AsyncClient(timeout=15.0, limits=limits)
 
 async def fetch_invidious(endpoint: str, params: dict = None, force_instance: str = None):
     if force_instance:
@@ -64,7 +65,7 @@ async def search(request: Request, q: str = Query(...), page: int = 1, type: str
         
         data = await fetch_invidious("/search", {"q": query_q, "page": page, "type": search_type}, force_instance=force_instance)
         
-        # リスト内包表記により、中間に空のリストを作らず一気に生成（高速化）
+        # 取得処理の高速化
         results = [{
             "type": item.get("type"),
             "videoId": item.get("videoId"),
@@ -97,14 +98,13 @@ async def search(request: Request, q: str = Query(...), page: int = 1, type: str
 @app.get("/shorts/{v}", response_class=HTMLResponse)
 async def shorts_player(request: Request, v: str, force_instance: str = Query(None)):
     try:
-        # fetch_invidiousの並列実行によりI/O待ち時間を最小化
+        # 並列実行
         video_task = fetch_invidious(f"/videos/{v}", force_instance=force_instance)
         comment_task = fetch_invidious(f"/comments/{v}", force_instance=force_instance)
         video_data, comment_data = await asyncio.gather(video_task, comment_task, return_exceptions=True)
 
         if isinstance(video_data, Exception): raise video_data
         
-        # ストリームの取得を簡潔化
         format_streams = video_data.get("formatStreams", [])
         if format_streams:
             video_urls = [fmt.get("url") for fmt in format_streams]
@@ -131,7 +131,6 @@ async def shorts_player(request: Request, v: str, force_instance: str = Query(No
 @app.get("/watch", response_class=HTMLResponse)
 async def watch(request: Request, v: str = Query(...), force_instance: str = Query(None)):
     try:
-        # 並列リクエストの最適化
         video_task = fetch_invidious(f"/videos/{v}", force_instance=force_instance)
         comment_task = fetch_invidious(f"/comments/{v}", force_instance=force_instance)
         video_data, comment_data = await asyncio.gather(video_task, comment_task, return_exceptions=True)
@@ -140,13 +139,12 @@ async def watch(request: Request, v: str = Query(...), force_instance: str = Que
         
         adaptive = video_data.get("adaptiveFormats", [])
         
-        # 音声URLの選定を高速化（日本語優先で見つかり次第終了）
-        audio_url = next((fmt.get("url") for fmt in adaptive if "audio" in fmt.get("type", "") and fmt.get("language") == "ja"), None) or \
+        # 音声URLの選定を高速化
+        audio_url = next((fmt.get("url") for fmt in adaptive if "audio" in (fmt_type := fmt.get("type", "")) and fmt.get("language") == "ja"), None) or \
                     next((fmt.get("url") for fmt in adaptive if "audio" in fmt.get("type", "")), None)
 
         format_streams = video_data.get("formatStreams", [])
         
-        # stream_urlsの構築（混合ストリーム + webmアダプティブストリーム）
         stream_urls = [{
             "url": fmt.get("url"),
             "resolution": fmt.get("qualityLabel"),
@@ -172,7 +170,6 @@ async def watch(request: Request, v: str = Query(...), force_instance: str = Que
             "view_count_text": rec.get("viewCountText")
         } for rec in video_data.get("recommendedVideos", [])]
 
-        # 著者アイコンの取得を安全かつ高速に
         author_thumbs = video_data.get("authorThumbnails", [])
         author_icon = author_thumbs[-1]["url"] if author_thumbs else ""
 
@@ -193,13 +190,13 @@ async def watch(request: Request, v: str = Query(...), force_instance: str = Que
             "comments": comment_data.get("comments", []) if not isinstance(comment_data, Exception) else []
         })
 
-        # クッキー履歴処理（最小限の計算）
         history_cookie = request.cookies.get("history", "[]")
         try:
             history = json.loads(history_cookie)
         except:
             history = []
 
+        # 履歴処理の最適化
         history = [item for item in history if item.get("videoId") != v]
         history.append({
             "videoId": v,
@@ -264,12 +261,12 @@ async def channel(request: Request, ucid: str, sort_by: str = "newest", tab: str
         
         results = await asyncio.gather(*tasks, return_exceptions=True)
         
-        if isinstance(results[0], Exception): raise results[0]
+        if isinstance(results, Exception): raise results
 
-        channel_data = results[0]
-        shorts_data = results[1] if not isinstance(results[1], Exception) else {}
-        playlists_data = results[2] if not isinstance(results[2], Exception) else {}
-        community_data = results[3] if not isinstance(results[3], Exception) else {}
+        channel_data = results
+        shorts_data = results if not isinstance(results, Exception) else {}
+        playlists_data = results if not isinstance(results, Exception) else {}
+        community_data = results if not isinstance(results, Exception) else {}
 
         playlists = []
         for pl in playlists_data.get("playlists", []):
@@ -356,7 +353,6 @@ async def read_2048(request: Request):
 
 @app.get("/status", response_class=HTMLResponse)
 async def read_status(request: Request):
-    # status確認を並列化して高速化
     async def check_instance(instance):
         start_time = datetime.now()
         try:
