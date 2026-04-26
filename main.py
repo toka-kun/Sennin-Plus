@@ -261,12 +261,11 @@ async def channel(request: Request, ucid: str, sort_by: str = "newest", tab: str
         
         results = await asyncio.gather(*tasks, return_exceptions=True)
         
-        if isinstance(results, Exception): raise results
-
-        channel_data = results
-        shorts_data = results if not isinstance(results, Exception) else {}
-        playlists_data = results if not isinstance(results, Exception) else {}
-        community_data = results if not isinstance(results, Exception) else {}
+        # 修正箇所: リストから各データを正しく取得
+        channel_data = results[0] if not isinstance(results[0], Exception) else {}
+        shorts_data = results[1] if not isinstance(results[1], Exception) else {}
+        playlists_data = results[2] if not isinstance(results[2], Exception) else {}
+        community_data = results[3] if not isinstance(results[3], Exception) else {}
 
         playlists = []
         for pl in playlists_data.get("playlists", []):
@@ -380,6 +379,10 @@ async def subscriptions_page(request: Request):
 
 @app.get("/bbs", response_class=HTMLResponse)
 async def subscriptions_page(request: Request):
+    return templates.TemplateResponse("bbs.html", {"request": request})
+
+@app.get("/bbs", response_class=HTMLResponse)
+async def ytdl_page(request: Request):
     return templates.TemplateResponse("bbs.html", {"request": request})
 
 if __name__ == "__main__":
