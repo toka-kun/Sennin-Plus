@@ -1,0 +1,212 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>仙人tube + | ツールポータル</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        :root {
+            --primary-color: #007bff;
+            --bg-light: #fdfdfd;
+            --text-dark: #333333;
+            --gray-logo: #555555;
+            --glass-bg: rgba(255, 255, 255, 0.85);
+            --card-bg: #ffffff;
+            --border-color: #e5e5e5;
+            --accent-hover: #0056b3;
+        }
+
+        @media (prefers-color-scheme: dark) {
+            :root {
+                --bg-light: #121212;
+                --text-dark: #e0e0e0;
+                --glass-bg: rgba(30, 30, 30, 0.85);
+                --gray-logo: #bbbbbb;
+                --card-bg: #1e1e1e;
+                --border-color: #333;
+            }
+        }
+
+        body {
+            font-family: 'Noto Sans JP', sans-serif;
+            margin: 0;
+            background-color: var(--bg-light);
+            color: var(--text-dark);
+            padding-top: 100px; /* トップバー分の余白 */
+        }
+
+        /* 共通トップバー */
+        #top-bar {
+            position: fixed; top: 0; left: 0; width: 100%;
+            background-color: var(--glass-bg);
+            backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px);
+            z-index: 1000; padding: 12px 25px;
+            display: flex; align-items: center; justify-content: space-between;
+            box-shadow: 0 2px 15px rgba(0, 0, 0, 0.05);
+            box-sizing: border-box;
+        }
+
+        .logo-small h2 {
+            font-size: 1.5rem; color: var(--gray-logo); margin: 0; cursor: pointer;
+        }
+
+        .logo-small sup { color: var(--primary-color); font-size: 0.6em; }
+
+        .search-container {
+            position: relative; flex: 0 1 600px; margin: 0 20px;
+        }
+
+        .search-container input {
+            width: 100%; padding: 12px 20px 12px 45px;
+            border: 1px solid var(--border-color); border-radius: 50px;
+            background: var(--card-bg); color: var(--text-dark);
+            outline: none; transition: all 0.3s;
+        }
+
+        /* ツールグリッドレイアウト */
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+            gap: 25px;
+        }
+
+        /* リンクカードのデザイン */
+        .tool-link {
+            text-decoration: none;
+            color: inherit;
+            display: block;
+        }
+
+        .card {
+            background: var(--card-bg);
+            border: 1px solid var(--border-color);
+            border-radius: 16px;
+            padding: 30px 20px;
+            text-align: center;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.02);
+            transition: all 0.3s ease;
+            height: 100%;
+            box-sizing: border-box;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+        }
+
+        /* ホバー時の挙動：少し浮き上がり、境界線を強調 */
+        .tool-link:hover .card {
+            transform: translateY(-8px);
+            box-shadow: 0 12px 20px rgba(0,0,0,0.1);
+            border-color: var(--primary-color);
+        }
+
+        .card i {
+            font-size: 2.5rem;
+            color: var(--primary-color);
+            margin-bottom: 15px;
+            transition: transform 0.3s ease;
+        }
+
+        .tool-link:hover .card i {
+            transform: scale(1.1);
+        }
+
+        .card h3 {
+            margin: 10px 0 5px 0;
+            font-size: 1.2rem;
+        }
+
+        .card p {
+            font-size: 0.9rem;
+            color: var(--gray-logo);
+            margin: 0;
+            line-height: 1.4;
+        }
+
+        @media (max-width: 600px) {
+            .search-container { display: none; }
+            .container { grid-template-columns: 1fr; }
+            body { padding-top: 80px; }
+        }
+    </style>
+</head>
+<body>
+
+    <header id="top-bar">
+        <div class="logo-small" onclick="location.reload()">
+            <h2>仙人tube <sup>+</sup></h2>
+        </div>
+        <div class="search-container">
+            <i class="fas fa-search"></i>
+            <input type="text" placeholder="ツールを探す...">
+        </div>
+        <div style="width: 40px;"></div>
+    </header>
+
+    <main class="container">
+
+        <a href="downloader.html" class="tool-link">
+            <section class="card">
+                <i class="fab fa-youtube"></i>
+                <h3>YouTube Downloader</h3>
+                <p>動画や音楽をオフラインで保存</p>
+            </section>
+        </a>
+
+        <a href="base64.html" class="tool-link">
+            <section class="card">
+                <i class="fas fa-sync-alt"></i>
+                <h3>Base64 変換</h3>
+                <p>テキストとBase64の相互変換</p>
+            </section>
+        </a>
+
+        <a href="editor.html" class="tool-link">
+            <section class="card">
+                <i class="fas fa-code"></i>
+                <h3>コードエディタ</h3>
+                <p>ブラウザ上でコードを記述・実行</p>
+            </section>
+        </a>
+
+        <a href="proxy.html" class="tool-link">
+            <section class="card">
+                <i class="fas fa-user-secret"></i>
+                <h3>Proxy</h3>
+                <p>匿名でウェブサイトを閲覧</p>
+            </section>
+        </a>
+
+        <a href="json.html" class="tool-link">
+            <section class="card">
+                <i class="fas fa-file-code"></i>
+                <h3>JSON 整形</h3>
+                <p>複雑なJSONを読みやすく整形</p>
+            </section>
+        </a>
+
+    </main>
+
+    <script>
+        // 検索バーのフィルタリング簡易実装（おまけ）
+        const searchInput = document.querySelector('.search-container input');
+        const cards = document.querySelectorAll('.tool-link');
+
+        searchInput.addEventListener('input', (e) => {
+            const term = e.target.value.toLowerCase();
+            cards.forEach(card => {
+                const title = card.querySelector('h3').textContent.toLowerCase();
+                if(title.includes(term)) {
+                    card.style.display = 'block';
+                } else {
+                    card.style.display = 'none';
+                }
+            });
+        });
+    </script>
+</body>
+</html>
