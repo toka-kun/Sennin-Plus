@@ -381,9 +381,9 @@ async def subscriptions_page(request: Request):
 async def subscriptions_page(request: Request):
     return templates.TemplateResponse("bbs.html", {"request": request})
 
-@app.get("/bbs", response_class=HTMLResponse)
+@app.get("/tools", response_class=HTMLResponse)
 async def ytdl_page(request: Request):
-    return templates.TemplateResponse("bbs.html", {"request": request})
+    return templates.TemplateResponse("tools.html", {"request": request})
 
 if __name__ == "__main__":
     import uvicorn
