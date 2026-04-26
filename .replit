@@ -1,0 +1,16 @@
+modules = ["python-3.11"]
+run = "python main.py"
+
+[nix]
+channel = "stable-23_11"
+
+[packager]
+language = "python3"
+
+[interpreter]
+command = ["python3"]
+
+# プレビューの設定
+[[ports]]
+localPort = 8000
+externalPort = 80
