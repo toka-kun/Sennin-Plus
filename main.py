@@ -385,6 +385,55 @@ async def subscriptions_page(request: Request):
 async def ytdl_page(request: Request):
     return templates.TemplateResponse("tools.html", {"request": request})
 
+@app.get("/download", response_class=HTMLResponse)
+async def download_page(request: Request, v: str = Query(...), force_instance: str = Query(None)):
+    try:
+        # 動画のメタデータを取得
+        video_data = await fetch_invidious(f"/videos/{v}", force_instance=force_instance)
+        
+        # ダウンロード用ストリームの整理
+        # formatStreams: 映像と音声が合体しているもの
+        # adaptiveFormats: 映像のみ、または音声のみ（高画質・高音質）
+        format_streams = video_data.get("formatStreams", [])
+        adaptive_formats = video_data.get("adaptiveFormats", [])
+
+        # 音声のみのストリームを抽出
+        audio_streams = [
+            {
+                "url": fmt.get("url"),
+                "container": fmt.get("container"),
+                "bitrate": f"{int(fmt.get('bitrate', 0)) // 1000}kbps",
+                "label": f"{fmt.get('container')} - {int(fmt.get('bitrate', 0)) // 1000}kbps"
+            }
+            for fmt in adaptive_formats if "audio" in fmt.get("type", "")
+        ]
+
+        # 映像ストリームを抽出（MixedとVideo Only）
+        video_streams = [
+            {
+                "url": fmt.get("url"),
+                "resolution": fmt.get("qualityLabel"),
+                "container": fmt.get("container"),
+                "type": "Mixed (映像+音声)"
+            }
+            for fmt in format_streams
+        ]
+
+        return templates.TemplateResponse("downloader.html", {
+            "request": request,
+            "videoid": v,
+            "video_title": video_data.get("title"),
+            "author": video_data.get("author"),
+            "thumbnail": f"https://i.ytimg.com/vi/{v}/maxresdefault.jpg",
+            "video_streams": video_streams,
+            "audio_streams": audio_streams
+        })
+    except httpx.TimeoutException:
+        return templates.TemplateResponse("apitimeout.html", {"request": request})
+    except Exception:
+        return templates.TemplateResponse("apiallerror.html", {"request": request, "instances": INVIDIOUS_INSTANCES})
+
+
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run(app, host="0.0.0.0", port=8000)
