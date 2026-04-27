@@ -163,8 +163,36 @@ async def shorts_player(request: Request, v: str, force_instance: str = Query(No
 @app.get("/watch", response_class=HTMLResponse)
 async def watch(request: Request, v: str = Query(...), force_instance: str = Query(None)):
     try:
-        # 取得を非同期で並列化
-        video_task = fetch_invidious(f"/videos/{v}", force_instance=force_instance)
+        # 高速化: 投機的実行を使用して、最も速いインスタンスからデータを取得
+        async def fetch_video_speculative(vid):
+            if force_instance:
+                return await fetch_invidious(f"/videos/{vid}", force_instance=force_instance)
+            
+            instances = list(INVIDIOUS_INSTANCES)
+            random.shuffle(instances)
+            target_instances = instances[:3]
+            
+            async def task(instance):
+                url = f"{instance.rstrip('/')}/api/v1/videos/{vid}"
+                resp = await client_session.get(url, timeout=5.0)
+                resp.raise_for_status()
+                return resp.json()
+
+            tasks = [asyncio.create_task(task(inst)) for inst in target_instances]
+            done, pending = await asyncio.wait(tasks, return_when=asyncio.FIRST_COMPLETED)
+            
+            res = None
+            for t in done:
+                try: res = t.result(); break
+                except: continue
+            
+            for t in pending: t.cancel()
+            
+            if res is None: res = await fetch_invidious(f"/videos/{vid}")
+            return res
+
+        # 動画データとコメントデータを並列で取得
+        video_task = fetch_video_speculative(v)
         comment_task = fetch_invidious(f"/comments/{v}", force_instance=force_instance)
         video_data, comment_data = await asyncio.gather(video_task, comment_task, return_exceptions=True)
 
@@ -233,11 +261,11 @@ async def watch(request: Request, v: str = Query(...), force_instance: str = Que
             "comments": comment_data.get("comments", []) if not isinstance(comment_data, Exception) else []
         })
 
-        # 履歴処理（非同期的に処理したいが、Cookie操作のためここで実行）
+        # 履歴処理
         try:
             history_json = request.cookies.get("history", "[]")
             history = json.loads(history_json)
-            # 高速な重複排除
+            # 重複排除
             history = [item for item in history if item.get("videoId") != v]
             history.append({
                 "videoId": v,
