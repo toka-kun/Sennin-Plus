@@ -18,10 +18,10 @@ templates.env.add_extension('jinja2.ext.do')
 INVIDIOUS_INSTANCES = [
     'https://inv.nadeko.net/',
     'https://invidious.f5.si/',
-    'https://invidious.lunivers.trade/',
+    'https://invidious.ritoge.com/',
     'https://invidious.ducks.party/',
     'https://super8.absturztau.be/',
-    'https://invidious.nikkosphere.com/',
+    'https://invidious.darkness.services/',
     'https://yt.omada.cafe/',
     'https://iv.melmac.space/',
     'https://iv.duti.dev/',
