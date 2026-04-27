@@ -63,10 +63,41 @@ async def search(request: Request, q: str = Query(...), page: int = 1, type: str
     try:
         search_type = type if type != "short" else "video"
         query_q = q if type != "short" else f"{q} shorts"
-        
-        data = await fetch_invidious("/search", {"q": query_q, "page": page, "type": search_type}, force_instance=force_instance)
-        
-        # 取得処理の高速化: リスト内包表記で一気に構築
+        params = {"q": query_q, "page": page, "type": search_type}
+
+        if force_instance:
+            data = await fetch_invidious("/search", params, force_instance=force_instance)
+        else:
+            # 高速化：上位3つのインスタンスに同時リクエストを送り、最速のレスポンスを採用する
+            instances = list(INVIDIOUS_INSTANCES)
+            random.shuffle(instances)
+            target_instances = instances[:3]
+            
+            async def fetch_task(instance):
+                url = f"{instance.rstrip('/')}/api/v1/search"
+                resp = await client_session.get(url, params=params, timeout=5.0)
+                resp.raise_for_status()
+                return resp.json()
+
+            tasks = [asyncio.create_task(fetch_task(inst)) for inst in target_instances]
+            done, pending = await asyncio.wait(tasks, return_when=asyncio.FIRST_COMPLETED)
+            
+            # 完了したタスクから結果を取得。失敗した場合は他のタスクを待つかフォールバック
+            data = None
+            for task in done:
+                try:
+                    data = task.result()
+                    break
+                except:
+                    continue
+            
+            for task in pending:
+                task.cancel()
+            
+            if data is None: # 投機的実行がすべて失敗した場合は通常の順次フェッチへ
+                data = await fetch_invidious("/search", params)
+
+        # 取得処理の高速化: 必要なデータのみをスライスして構築
         results = [{
             "type": item.get("type"),
             "videoId": item.get("videoId"),
