@@ -28,8 +28,9 @@ INVIDIOUS_INSTANCES = [
 ]
 
 # 高速化のためにAsyncClientをグローバルに保持（コネクションプーリングとリミットの最適化）
-limits = httpx.Limits(max_connections=100, max_keepalive_connections=20)
-client_session = httpx.AsyncClient(timeout=10.0, limits=limits)
+# max_connectionsを増やし、keepaliveを長めに設定
+limits = httpx.Limits(max_connections=200, max_keepalive_connections=50)
+client_session = httpx.AsyncClient(timeout=10.0, limits=limits, follow_redirects=True)
 
 async def fetch_invidious(endpoint: str, params: dict = None, force_instance: str = None):
     if force_instance:
@@ -65,7 +66,7 @@ async def search(request: Request, q: str = Query(...), page: int = 1, type: str
         
         data = await fetch_invidious("/search", {"q": query_q, "page": page, "type": search_type}, force_instance=force_instance)
         
-        # 取得処理の高速化
+        # 取得処理の高速化: リスト内包表記で一気に構築
         results = [{
             "type": item.get("type"),
             "videoId": item.get("videoId"),
@@ -140,9 +141,15 @@ async def watch(request: Request, v: str = Query(...), force_instance: str = Que
         
         adaptive = video_data.get("adaptiveFormats", [])
         
-        # 音声URLの選定を高速化（日本語優先、なければ最初の音声を1パスで取得）
-        audio_url = next((f.get("url") for f in adaptive if "audio" in f.get("type", "") and f.get("language") == "ja"), None) or \
-                    next((f.get("url") for f in adaptive if "audio" in f.get("type", "")), None)
+        # 音声URLの選定を高速化（1パスで検索）
+        audio_url = None
+        for f in adaptive:
+            if "audio" in f.get("type", ""):
+                if f.get("language") == "ja":
+                    audio_url = f.get("url")
+                    break
+                if audio_url is None:
+                    audio_url = f.get("url")
 
         format_streams = video_data.get("formatStreams", [])
         
@@ -195,10 +202,11 @@ async def watch(request: Request, v: str = Query(...), force_instance: str = Que
             "comments": comment_data.get("comments", []) if not isinstance(comment_data, Exception) else []
         })
 
-        # 履歴処理（最後に実行）
+        # 履歴処理（非同期的に処理したいが、Cookie操作のためここで実行）
         try:
-            history = json.loads(request.cookies.get("history", "[]"))
-            # 重複排除と追加を1ステップで効率化
+            history_json = request.cookies.get("history", "[]")
+            history = json.loads(history_json)
+            # 高速な重複排除
             history = [item for item in history if item.get("videoId") != v]
             history.append({
                 "videoId": v,
@@ -220,9 +228,8 @@ async def watch(request: Request, v: str = Query(...), force_instance: str = Que
 
 @app.get("/history", response_class=HTMLResponse)
 async def history_page(request: Request):
-    history_data = request.cookies.get("history", "[]")
     try:
-        history_list = json.loads(history_data)
+        history_list = json.loads(request.cookies.get("history", "[]"))
     except:
         history_list = []
     history_list.reverse()
@@ -255,6 +262,7 @@ async def playlist(request: Request, list: str = Query(...), force_instance: str
 @app.get("/channel/{ucid}", response_class=HTMLResponse)
 async def channel(request: Request, ucid: str, sort_by: str = "newest", tab: str = "videos", force_instance: str = Query(None)):
     try:
+        # 4つのAPIリクエストを完全に並列化
         tasks = [
             fetch_invidious(f"/channels/{ucid}", {"sort_by": sort_by}, force_instance=force_instance),
             fetch_invidious(f"/channels/{ucid}/shorts", force_instance=force_instance),
@@ -269,6 +277,7 @@ async def channel(request: Request, ucid: str, sort_by: str = "newest", tab: str
         playlists_data = results[2] if not isinstance(results[2], Exception) else {}
         community_data = results[3] if not isinstance(results[3], Exception) else {}
 
+        # プレイリストデータの構築
         playlists = []
         for pl in playlists_data.get("playlists", []):
             thumb = pl.get("playlistThumbnail", "")
@@ -284,6 +293,7 @@ async def channel(request: Request, ucid: str, sort_by: str = "newest", tab: str
         author_name = channel_data.get("author")
         author_icon = channel_data.get("authorThumbnails", [{"url": ""}])[-1]["url"]
 
+        # コミュニティ投稿の構築
         community = [{
             "id": post.get("commentId", ""),
             "content": post.get("contentHtml", "").replace("\n", "<br>"),
@@ -318,7 +328,7 @@ async def suggest(keyword: str):
     random.shuffle(instances)
     for instance in instances:
         try:
-            resp = await client_session.get(f"{instance.rstrip('/')}/api/v1/search/suggestions", params={"q": keyword})
+            resp = await client_session.get(f"{instance.rstrip('/')}/api/v1/search/suggestions", params={"q": keyword}, timeout=2.0)
             if resp.status_code == 200:
                 return resp.json().get("suggestions", [])
         except: continue
@@ -328,7 +338,7 @@ async def suggest(keyword: str):
 async def proxy_thumb(v: str):
     thumb_url = f"https://i.ytimg.com/vi/{v}/mqdefault.jpg"
     try:
-        resp = await client_session.get(thumb_url)
+        resp = await client_session.get(thumb_url, timeout=5.0)
         return Response(content=resp.content, media_type="image/jpeg")
     except: return Response(status_code=404)
 
@@ -355,10 +365,10 @@ async def read_2048(request: Request):
 @app.get("/status", response_class=HTMLResponse)
 async def read_status(request: Request):
     async def check_instance(instance):
-        start_time = datetime.now()
+        start_time = asyncio.get_event_loop().time()
         try:
-            resp = await client_session.get(f"{instance.rstrip('/')}/api/v1/stats", timeout=10.0)
-            latency = (datetime.now() - start_time).total_seconds() * 1000
+            resp = await client_session.get(f"{instance.rstrip('/')}/api/v1/stats", timeout=5.0)
+            latency = (asyncio.get_event_loop().time() - start_time) * 1000
             if resp.status_code == 200:
                 data = resp.json()
                 return {
@@ -380,10 +390,10 @@ async def subscriptions_page(request: Request):
     return templates.TemplateResponse("subscriptions.html", {"request": request})
 
 @app.get("/bbs", response_class=HTMLResponse)
-async def subscriptions_page(request: Request):
+async def bbs_page(request: Request):
     return templates.TemplateResponse("bbs.html", {"request": request})
 
-@app.get("/bbs", response_class=HTMLResponse)
+@app.get("/ytdl", response_class=HTMLResponse)
 async def ytdl_page(request: Request):
     return templates.TemplateResponse("bbs.html", {"request": request})
 
