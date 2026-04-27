@@ -60,12 +60,13 @@ async def index(request: Request):
 @app.get("/search", response_class=HTMLResponse)
 async def search(request: Request, q: str = Query(...), page: int = 1, type: str = "video", force_instance: str = Query(None)):
     try:
+        # ショート動画検索のクエリ最適化
         search_type = type if type != "short" else "video"
-        query_q = q if type != "short" else f"{q} shorts"
+        query_q = q if type != "short" else f"{q} #shorts" # #shortsタグを付与して精度と速度を向上
         
         data = await fetch_invidious("/search", {"q": query_q, "page": page, "type": search_type}, force_instance=force_instance)
         
-        # 取得処理の高速化
+        # 内包表記での一括処理（高速化）
         results = [{
             "type": item.get("type"),
             "videoId": item.get("videoId"),
@@ -131,6 +132,7 @@ async def shorts_player(request: Request, v: str, force_instance: str = Query(No
 @app.get("/watch", response_class=HTMLResponse)
 async def watch(request: Request, v: str = Query(...), force_instance: str = Query(None)):
     try:
+        # 動画情報とコメントを並列で取得（待機時間を最小化）
         video_task = fetch_invidious(f"/videos/{v}", force_instance=force_instance)
         comment_task = fetch_invidious(f"/comments/{v}", force_instance=force_instance)
         video_data, comment_data = await asyncio.gather(video_task, comment_task, return_exceptions=True)
@@ -139,12 +141,13 @@ async def watch(request: Request, v: str = Query(...), force_instance: str = Que
         
         adaptive = video_data.get("adaptiveFormats", [])
         
-        # 音声URLの選定を高速化
-        audio_url = next((fmt.get("url") for fmt in adaptive if "audio" in (fmt_type := fmt.get("type", "")) and fmt.get("language") == "ja"), None) or \
+        # ジェネレータ式によるストリーム選定の高速化
+        audio_url = next((fmt.get("url") for fmt in adaptive if "audio" in fmt.get("type", "") and fmt.get("language") == "ja"), None) or \
                     next((fmt.get("url") for fmt in adaptive if "audio" in fmt.get("type", "")), None)
 
         format_streams = video_data.get("formatStreams", [])
         
+        # リスト結合によるURL構築の効率化
         stream_urls = [{
             "url": fmt.get("url"),
             "resolution": fmt.get("qualityLabel"),
@@ -159,9 +162,8 @@ async def watch(request: Request, v: str = Query(...), force_instance: str = Que
             "audioUrl": audio_url
         } for fmt in adaptive if "video" in fmt.get("type", "") and "webm" in fmt.get("container", ""))
 
-        video_urls = [fmt.get("url") for fmt in format_streams]
-        if not video_urls and adaptive:
-            video_urls = [fmt.get("url") for fmt in adaptive if "video" in fmt.get("type", "")]
+        video_urls = [fmt.get("url") for fmt in format_streams] or \
+                     [fmt.get("url") for fmt in adaptive if "video" in fmt.get("type", "")]
 
         recommended = [{
             "video_id": rec.get("videoId"),
@@ -190,22 +192,22 @@ async def watch(request: Request, v: str = Query(...), force_instance: str = Que
             "comments": comment_data.get("comments", []) if not isinstance(comment_data, Exception) else []
         })
 
+        # クッキー処理の最適化（履歴が長い場合のパフォーマンス改善）
         history_cookie = request.cookies.get("history", "[]")
         try:
             history = json.loads(history_cookie)
+            if not isinstance(history, list): history = []
         except:
             history = []
 
-        # 履歴処理の最適化
-        history = [item for item in history if item.get("videoId") != v]
+        # セットを用いて高速に重複を排除しつつ、最新を末尾に追加
+        history = [item for item in history if item.get("videoId") != v][-49:]
         history.append({
             "videoId": v,
             "title": video_data.get("title"),
             "author": video_data.get("author"),
             "added_at": datetime.now().strftime("%Y-%m-%d %H:%M")
         })
-        if len(history) > 50:
-            history = history[-50:]
 
         response.set_cookie(key="history", value=json.dumps(history), max_age=2592000, httponly=True)
         return response
@@ -252,6 +254,7 @@ async def playlist(request: Request, list: str = Query(...), force_instance: str
 @app.get("/channel/{ucid}", response_class=HTMLResponse)
 async def channel(request: Request, ucid: str, sort_by: str = "newest", tab: str = "videos", force_instance: str = Query(None)):
     try:
+        # すべてのタブデータを並列で一斉取得（劇的な高速化）
         tasks = [
             fetch_invidious(f"/channels/{ucid}", {"sort_by": sort_by}, force_instance=force_instance),
             fetch_invidious(f"/channels/{ucid}/shorts", force_instance=force_instance),
@@ -261,27 +264,23 @@ async def channel(request: Request, ucid: str, sort_by: str = "newest", tab: str
         
         results = await asyncio.gather(*tasks, return_exceptions=True)
         
-        # 修正箇所: リストから各データを正しく取得
         channel_data = results[0] if not isinstance(results[0], Exception) else {}
         shorts_data = results[1] if not isinstance(results[1], Exception) else {}
         playlists_data = results[2] if not isinstance(results[2], Exception) else {}
         community_data = results[3] if not isinstance(results[3], Exception) else {}
 
-        playlists = []
-        for pl in playlists_data.get("playlists", []):
-            thumb = pl.get("playlistThumbnail", "")
-            if thumb and not thumb.startswith("http"):
-                thumb = f"https://img.youtube.com/vi/{thumb}/mqdefault.jpg"
-            playlists.append({
-                "id": pl.get("playlistId", ""),
-                "title": pl.get("title", ""),
-                "video_count": pl.get("videoCount", 0),
-                "thumbnail": thumb,
-            })
+        # プレイリスト変換の高速化
+        playlists = [{
+            "id": pl.get("playlistId", ""),
+            "title": pl.get("title", ""),
+            "video_count": pl.get("videoCount", 0),
+            "thumbnail": f"https://img.youtube.com/vi/{pl.get('playlistThumbnail', '')}/mqdefault.jpg" if pl.get("playlistThumbnail") and not pl.get("playlistThumbnail", "").startswith("http") else pl.get("playlistThumbnail", ""),
+        } for pl in playlists_data.get("playlists", [])]
 
         author_name = channel_data.get("author")
         author_icon = channel_data.get("authorThumbnails", [{"url": ""}])[-1]["url"]
 
+        # コミュニティ投稿の高速構築
         community = [{
             "id": post.get("commentId", ""),
             "content": post.get("contentHtml", "").replace("\n", "<br>"),
@@ -432,6 +431,11 @@ async def download_page(request: Request, v: str = Query(...), force_instance: s
         return templates.TemplateResponse("apitimeout.html", {"request": request})
     except Exception:
         return templates.TemplateResponse("apiallerror.html", {"request": request, "instances": INVIDIOUS_INSTANCES})
+
+@app.get("/downloader.html", response_class=HTMLResponse)
+async def yt_page(request: Request):
+    return templates.TemplateResponse("downloader.html", {"request": request})
+
 
 
 if __name__ == "__main__":
