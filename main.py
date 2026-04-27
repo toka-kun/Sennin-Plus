@@ -66,28 +66,22 @@ async def search(request: Request, q: str = Query(...), page: int = 1, type: str
         data = await fetch_invidious("/search", {"q": query_q, "page": page, "type": search_type}, force_instance=force_instance)
         
         # 取得処理の高速化
-        results = []
-        for item in data:
-            # Short動画検索の場合、タイトルに # が含まれているもののみを抽出するロジックに変更
-            if type == "short" and "#" not in item.get("title", ""):
-                continue
-                
-            results.append({
-                "type": item.get("type"),
-                "videoId": item.get("videoId"),
-                "playlistId": item.get("playlistId"),
-                "authorId": item.get("authorId"),
-                "title": item.get("title"),
-                "lengthSeconds": item.get("lengthSeconds"),
-                "author": item.get("author"),
-                "authorThumbnails": item.get("authorThumbnails"),
-                "videoThumbnails": item.get("videoThumbnails"),
-                "viewCountText": item.get("viewCountText"),
-                "viewCount": item.get("viewCount"),
-                "publishedText": item.get("publishedText"),
-                "subCountText": item.get("subCountText"),
-                "videoCount": item.get("videoCount")
-            })
+        results = [{
+            "type": item.get("type"),
+            "videoId": item.get("videoId"),
+            "playlistId": item.get("playlistId"),
+            "authorId": item.get("authorId"),
+            "title": item.get("title"),
+            "lengthSeconds": item.get("lengthSeconds"),
+            "author": item.get("author"),
+            "authorThumbnails": item.get("authorThumbnails"),
+            "videoThumbnails": item.get("videoThumbnails"),
+            "viewCountText": item.get("viewCountText"),
+            "viewCount": item.get("viewCount"),
+            "publishedText": item.get("publishedText"),
+            "subCountText": item.get("subCountText"),
+            "videoCount": item.get("videoCount")
+        } for item in data]
             
         return templates.TemplateResponse("search.html", {
             "request": request, 
@@ -268,10 +262,10 @@ async def channel(request: Request, ucid: str, sort_by: str = "newest", tab: str
         results = await asyncio.gather(*tasks, return_exceptions=True)
         
         # 修正箇所: リストから各データを正しく取得
-        channel_data = results if not isinstance(results, Exception) else {}
-        shorts_data = results if not isinstance(results, Exception) else {}
-        playlists_data = results if not isinstance(results, Exception) else {}
-        community_data = results if not isinstance(results, Exception) else {}
+        channel_data = results[0] if not isinstance(results[0], Exception) else {}
+        shorts_data = results[1] if not isinstance(results[1], Exception) else {}
+        playlists_data = results[2] if not isinstance(results[2], Exception) else {}
+        community_data = results[3] if not isinstance(results[3], Exception) else {}
 
         playlists = []
         for pl in playlists_data.get("playlists", []):
