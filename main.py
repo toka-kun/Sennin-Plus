@@ -29,7 +29,7 @@ INVIDIOUS_INSTANCES = [
 
 # 高速化のためにAsyncClientをグローバルに保持（コネクションプーリングとリミットの最適化）
 limits = httpx.Limits(max_connections=100, max_keepalive_connections=20)
-client_session = httpx.AsyncClient(timeout=15.0, limits=limits)
+client_session = httpx.AsyncClient(timeout=10.0, limits=limits)
 
 async def fetch_invidious(endpoint: str, params: dict = None, force_instance: str = None):
     if force_instance:
@@ -131,6 +131,7 @@ async def shorts_player(request: Request, v: str, force_instance: str = Query(No
 @app.get("/watch", response_class=HTMLResponse)
 async def watch(request: Request, v: str = Query(...), force_instance: str = Query(None)):
     try:
+        # 取得を非同期で並列化
         video_task = fetch_invidious(f"/videos/{v}", force_instance=force_instance)
         comment_task = fetch_invidious(f"/comments/{v}", force_instance=force_instance)
         video_data, comment_data = await asyncio.gather(video_task, comment_task, return_exceptions=True)
@@ -139,12 +140,13 @@ async def watch(request: Request, v: str = Query(...), force_instance: str = Que
         
         adaptive = video_data.get("adaptiveFormats", [])
         
-        # 音声URLの選定を高速化
-        audio_url = next((fmt.get("url") for fmt in adaptive if "audio" in (fmt_type := fmt.get("type", "")) and fmt.get("language") == "ja"), None) or \
-                    next((fmt.get("url") for fmt in adaptive if "audio" in fmt.get("type", "")), None)
+        # 音声URLの選定を高速化（日本語優先、なければ最初の音声を1パスで取得）
+        audio_url = next((f.get("url") for f in adaptive if "audio" in f.get("type", "") and f.get("language") == "ja"), None) or \
+                    next((f.get("url") for f in adaptive if "audio" in f.get("type", "")), None)
 
         format_streams = video_data.get("formatStreams", [])
         
+        # リスト内包表記でstream_urlsを効率的に構築
         stream_urls = [{
             "url": fmt.get("url"),
             "resolution": fmt.get("qualityLabel"),
@@ -152,6 +154,7 @@ async def watch(request: Request, v: str = Query(...), force_instance: str = Que
             "audioUrl": ""
         } for fmt in format_streams]
         
+        # webm/videoOnlyを統合
         stream_urls.extend({
             "url": fmt.get("url"),
             "resolution": fmt.get("qualityLabel"),
@@ -159,10 +162,11 @@ async def watch(request: Request, v: str = Query(...), force_instance: str = Que
             "audioUrl": audio_url
         } for fmt in adaptive if "video" in fmt.get("type", "") and "webm" in fmt.get("container", ""))
 
-        video_urls = [fmt.get("url") for fmt in format_streams]
-        if not video_urls and adaptive:
-            video_urls = [fmt.get("url") for fmt in adaptive if "video" in fmt.get("type", "")]
+        # 優先ビデオURLの取得
+        video_urls = [fmt.get("url") for fmt in format_streams] or \
+                     [fmt.get("url") for fmt in adaptive if "video" in fmt.get("type", "")]
 
+        # 推奨動画のリスト構築
         recommended = [{
             "video_id": rec.get("videoId"),
             "title": rec.get("title"),
@@ -173,6 +177,7 @@ async def watch(request: Request, v: str = Query(...), force_instance: str = Que
         author_thumbs = video_data.get("authorThumbnails", [])
         author_icon = author_thumbs[-1]["url"] if author_thumbs else ""
 
+        # レスポンス生成
         response = templates.TemplateResponse("watch.html", {
             "request": request,
             "videoid": v,
@@ -190,24 +195,22 @@ async def watch(request: Request, v: str = Query(...), force_instance: str = Que
             "comments": comment_data.get("comments", []) if not isinstance(comment_data, Exception) else []
         })
 
-        history_cookie = request.cookies.get("history", "[]")
+        # 履歴処理（最後に実行）
         try:
-            history = json.loads(history_cookie)
+            history = json.loads(request.cookies.get("history", "[]"))
+            # 重複排除と追加を1ステップで効率化
+            history = [item for item in history if item.get("videoId") != v]
+            history.append({
+                "videoId": v,
+                "title": video_data.get("title"),
+                "author": video_data.get("author"),
+                "added_at": datetime.now().strftime("%Y-%m-%d %H:%M")
+            })
+            if len(history) > 50: history = history[-50:]
+            response.set_cookie(key="history", value=json.dumps(history), max_age=2592000, httponly=True)
         except:
-            history = []
+            pass
 
-        # 履歴処理の最適化
-        history = [item for item in history if item.get("videoId") != v]
-        history.append({
-            "videoId": v,
-            "title": video_data.get("title"),
-            "author": video_data.get("author"),
-            "added_at": datetime.now().strftime("%Y-%m-%d %H:%M")
-        })
-        if len(history) > 50:
-            history = history[-50:]
-
-        response.set_cookie(key="history", value=json.dumps(history), max_age=2592000, httponly=True)
         return response
 
     except httpx.TimeoutException:
@@ -261,7 +264,6 @@ async def channel(request: Request, ucid: str, sort_by: str = "newest", tab: str
         
         results = await asyncio.gather(*tasks, return_exceptions=True)
         
-        # 修正箇所: リストから各データを正しく取得
         channel_data = results[0] if not isinstance(results[0], Exception) else {}
         shorts_data = results[1] if not isinstance(results[1], Exception) else {}
         playlists_data = results[2] if not isinstance(results[2], Exception) else {}
@@ -355,7 +357,7 @@ async def read_status(request: Request):
     async def check_instance(instance):
         start_time = datetime.now()
         try:
-            resp = await client_session.get(f"{instance.rstrip('/')}/api/v1/stats", timeout=3.0)
+            resp = await client_session.get(f"{instance.rstrip('/')}/api/v1/stats", timeout=10.0)
             latency = (datetime.now() - start_time).total_seconds() * 1000
             if resp.status_code == 200:
                 data = resp.json()
