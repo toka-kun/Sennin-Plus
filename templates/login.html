@@ -1,0 +1,388 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ログイン | 学習ポータル</title>
+    <style>
+        /* 基本設定 */
+        :root {
+            --bg-dark: #0f1115;      /* 全体の背景 */
+            --card-dark: #1a1c23;    /* フォーム側の背景 */
+            --input-bg: #2d2d2d;     /* 入力欄の背景 */
+            --accent-blue: #3b82f6;  /* アクセントカラー */
+            --text-main: #ffffff;
+            --text-sub: #9ca3af;
+            --glass-border: rgba(255, 255, 255, 0.1);
+            --glass-highlight: rgba(255, 255, 255, 0.2);
+        }
+
+        body, html {
+            margin: 0;
+            padding: 0;
+            height: 100%;
+            font-family: 'Helvetica Neue', Arial, 'Hiragino Kaku Gothic ProN', 'Hiragino Sans', Meiryo, sans-serif;
+            background-color: var(--bg-dark);
+            /* 液体感を出すための深みのあるグラデーション */
+            background: radial-gradient(circle at 20% 30%, #1e222b 0%, #0f1115 100%);
+            color: var(--text-main);
+            overflow: hidden;
+        }
+
+        /* 左右分割のレイアウト */
+        .container {
+            display: flex;
+            height: 100vh;
+            width: 100%;
+        }
+
+        /* --- 左側：ブランドエリア --- */
+        .left-side {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            background: linear-gradient(135deg, rgba(26, 28, 35, 0.8) 0%, rgba(8, 9, 10, 0.9) 100%);
+            backdrop-filter: blur(20px);
+            -webkit-backdrop-filter: blur(20px);
+            border-right: 1px solid var(--glass-border);
+            padding: 40px;
+            position: relative;
+        }
+
+        .brand-logo {
+            font-size: 3rem;
+            font-weight: bold;
+            letter-spacing: 0.1em;
+            /* 下線を削除しシンプルに */
+            margin-bottom: 1rem;
+            text-shadow: 0 0 20px rgba(59, 130, 246, 0.5);
+        }
+
+        .brand-logo, .brand-subtitle {
+            pointer-events: none;
+        }
+
+        .brand-subtitle {
+            color: var(--text-sub);
+            font-size: 1.1rem;
+            letter-spacing: 0.2em;
+        }
+
+        /* --- 右側：フォームエリア --- */
+        .right-side {
+            flex: 1;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            background-color: var(--card-dark);
+            /* 右側もハーフ透明のガラス質感に */
+            background: rgba(26, 28, 35, 0.6);
+            backdrop-filter: blur(30px);
+            -webkit-backdrop-filter: blur(30px);
+            padding: 40px;
+        }
+
+        .login-box {
+            width: 100%;
+            max-width: 360px;
+        }
+
+        .login-box h2 {
+            font-size: 1.5rem;
+            margin-bottom: 2rem;
+            text-align: center;
+            font-weight: 500;
+        }
+
+        .form-group {
+            margin-bottom: 1.5rem;
+        }
+
+        .form-group label {
+            display: block;
+            margin-bottom: 0.5rem;
+            color: var(--text-sub);
+            font-size: 0.9rem;
+        }
+
+        input[type="password"] {
+            width: 100%;
+            padding: 1rem;
+            background-color: rgba(45, 45, 45, 0.5);
+            border: 1px solid var(--glass-border);
+            border-radius: 12px;
+            color: #fff;
+            font-size: 1rem;
+            box-sizing: border-box;
+            outline: none;
+            transition: all 0.3s ease;
+            backdrop-filter: blur(5px);
+            box-shadow: inset 0 2px 4px rgba(0,0,0,0.3);
+        }
+
+        input[type="password"]:focus {
+            border-color: var(--accent-blue);
+            background-color: rgba(45, 45, 45, 0.8);
+            box-shadow: 0 0 15px rgba(59, 130, 246, 0.2), inset 0 2px 4px rgba(0,0,0,0.3);
+        }
+
+        /* ボタン共通：Liquid Glass & 粘性アニメーション */
+        .btn {
+            width: 100%;
+            padding: 1rem;
+            border-radius: 12px;
+            border: 1px solid var(--glass-border);
+            font-size: 1rem;
+            font-weight: bold;
+            cursor: pointer;
+            position: relative;
+            overflow: hidden;
+            /* transformの変化を滑らかにする（JSで制御するため個別に指定） */
+            transition: border-color 0.4s, background 0.4s, box-shadow 0.4s;
+            margin-bottom: 1rem;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            z-index: 1;
+            /* 伸びる基準点 */
+            transform-origin: center center;
+            will-change: transform;
+            /* タッチ時のデフォルトの動作を抑制してストレッチを優先 */
+            touch-action: none;
+        }
+
+        /* 液体が指に吸い付いて伸びるような動きを再現 */
+        .btn:active {
+            filter: brightness(0.9);
+        }
+
+        /* 表面の光沢（リキッド・シマー） */
+        .btn::after {
+            content: '';
+            position: absolute;
+            top: -50%;
+            left: -50%;
+            width: 200%;
+            height: 200%;
+            background: radial-gradient(circle, rgba(255,255,255,0.2) 0%, transparent 70%);
+            opacity: 0;
+            transition: opacity 0.3s;
+            pointer-events: none;
+        }
+
+        .btn:hover::after {
+            opacity: 1;
+        }
+
+        .btn-login {
+            background: linear-gradient(135deg, #3b82f6 0%, #1d4ed8 100%);
+            color: #fff;
+            box-shadow: 0 8px 20px rgba(59, 130, 246, 0.3), inset 0 1px 1px rgba(255, 255, 255, 0.4);
+        }
+
+        .btn-login:hover {
+            border-color: var(--glass-highlight);
+            box-shadow: 0 12px 25px rgba(59, 130, 246, 0.5), inset 0 1px 2px rgba(255, 255, 255, 0.6);
+        }
+
+        .btn-guest {
+            background-color: rgba(255, 255, 255, 0.05);
+            color: var(--text-sub);
+            border: 1px solid var(--glass-border);
+            backdrop-filter: blur(10px);
+        }
+
+        .btn-guest:hover {
+            background-color: rgba(255, 255, 255, 0.1);
+            color: var(--text-main);
+            box-shadow: 0 8px 20px rgba(0, 0, 0, 0.3), inset 0 1px 1px rgba(255, 255, 255, 0.1);
+        }
+
+        /* インライン認証アニメーション用スタイル */
+        #auth-status-container {
+            display: none;
+            margin-bottom: 1.5rem;
+            text-align: center;
+            background: rgba(255, 255, 255, 0.03);
+            border: 1px solid var(--glass-border);
+            padding: 1rem;
+            border-radius: 12px;
+            backdrop-filter: blur(10px);
+        }
+
+        .loader {
+            width: 20px;
+            height: 20px;
+            border: 2px solid #FFF;
+            border-bottom-color: var(--accent-blue);
+            border-radius: 50%;
+            display: inline-block;
+            box-sizing: border-box;
+            animation: rotation 1s linear infinite;
+            vertical-align: middle;
+            margin-right: 10px;
+        }
+
+        @keyframes rotation {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        .status-text {
+            color: var(--text-main);
+            font-size: 0.85rem;
+            letter-spacing: 0.05em;
+            vertical-align: middle;
+        }
+
+        .footer-link {
+            text-align: center;
+            margin-top: 2rem;
+        }
+
+        .footer-link a {
+            color: var(--accent-blue);
+            text-decoration: none;
+            font-size: 0.85rem;
+            transition: 0.3s;
+            opacity: 0.8;
+        }
+
+        .footer-link a:hover {
+            opacity: 1;
+            text-shadow: 0 0 8px rgba(59, 130, 246, 0.4);
+        }
+
+        /* スマホ対応：縦に並べる */
+        @media (max-width: 768px) {
+            .container {
+                flex-direction: column;
+            }
+            .left-side {
+                flex: 0 0 35%;
+                padding: 20px;
+                border-right: none;
+                border-bottom: 1px solid var(--glass-border);
+            }
+            .brand-logo {
+                font-size: 2.2rem;
+            }
+            .right-side {
+                flex: 1;
+            }
+        }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <div class="left-side">
+        <div class="brand-logo">学習ポータル</div>
+        <div class="brand-subtitle">STUDY PORTAL</div>
+    </div>
+
+    <div class="right-side">
+        <div class="login-box">
+            <h2>おかえりなさい</h2>
+            
+            <form id="login-form">
+                <div class="form-group">
+                    <label>パスワード</label>
+                    <input type="password" id="password" placeholder="パスワードを入力してください" required>
+                </div>
+                
+                <button type="submit" class="btn btn-login">ログイン</button>
+            </form>
+
+            <div id="auth-status-container">
+                <span class="loader"></span>
+                <span class="status-text" id="status-text">認証情報を確認中...</span>
+            </div>
+
+            <button type="button" id="guest-btn" class="btn btn-guest">ゲストとしてログイン</button>
+
+            <div class="footer-link">
+                <a href="#">パスワードを忘れた場合</a>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    const buttons = document.querySelectorAll('.btn');
+    const loginForm = document.getElementById('login-form');
+    const guestBtn = document.getElementById('guest-btn');
+    const passwordInput = document.getElementById('password');
+    const authStatusContainer = document.getElementById('auth-status-container');
+    const statusText = document.getElementById('status-text');
+
+    // 認証シーケンス（4つのダミー項目）
+    async function startAuthSequence() {
+        authStatusContainer.style.display = 'block';
+        const steps = [
+            "認証情報を確認中...",
+            "クッキーをチェック中...",
+            "セキュリティトークンを検証中...",
+            "学習環境を準備中..."
+        ];
+
+        for (let step of steps) {
+            statusText.innerText = step;
+            await new Promise(resolve => setTimeout(resolve, 800));
+        }
+        
+        window.location.href = 'home.html';
+    }
+
+    loginForm.addEventListener('submit', (e) => {
+        e.preventDefault();
+        if (passwordInput.value === 'sennin') {
+            startAuthSequence();
+        } else {
+            alert('パスワードが違います');
+        }
+    });
+
+    guestBtn.addEventListener('click', () => {
+        startAuthSequence();
+    });
+
+    // ストレッチの挙動：横のみに伸びるよう修正
+    function handleMove(e, btn) {
+        const clientX = e.type.startsWith('touch') ? e.touches[0].clientX : e.clientX;
+        const clientY = e.type.startsWith('touch') ? e.touches[0].clientY : e.clientY;
+
+        const rect = btn.getBoundingClientRect();
+        const centerX = rect.left + rect.width / 2;
+        const distanceX = clientX - centerX;
+        
+        const stretchScale = 1 + (Math.abs(distanceX) / (rect.width / 2)) * 0.35;
+
+        btn.style.transition = 'transform 0.05s linear'; 
+        btn.style.transform = `scaleX(${stretchScale}) translateY(-2px)`;
+        
+        const x = clientX - rect.left;
+        const y = clientY - rect.top;
+        btn.style.setProperty('--x', `${x}px`);
+        btn.style.setProperty('--y', `${y}px`);
+    }
+
+    function handleReset(btn) {
+        btn.style.transition = 'transform 0.6s cubic-bezier(0.175, 0.885, 0.32, 1.275)';
+        btn.style.transform = 'scaleX(1) translateY(0px)';
+    }
+
+    buttons.forEach(btn => {
+        btn.addEventListener('mousemove', (e) => handleMove(e, btn));
+        btn.addEventListener('mouseleave', () => handleReset(btn));
+        btn.addEventListener('touchstart', (e) => handleMove(e, btn));
+        btn.addEventListener('touchmove', (e) => handleMove(e, btn));
+        btn.addEventListener('touchend', () => handleReset(btn));
+        btn.addEventListener('touchcancel', () => handleReset(btn));
+    });
+</script>
+
+</body>
+</html>
