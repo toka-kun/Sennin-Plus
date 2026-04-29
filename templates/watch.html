@@ -8,6 +8,7 @@
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
     <script src="https://code.jquery.com/jquery-3.5.1.min.js"></script>
     <script src="https://code.jquery.com/ui/1.12.1/jquery-ui.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/hls.js@latest"></script>
     <style>
         :root {
             --primary-color: #007bff;
@@ -350,6 +351,7 @@
                                 {{ stream.resolution }} ({{ stream.format }})
                             </div>
                             {% endfor %}
+                            <div class="custom-option" data-type="m3u8" data-value="{{ youtube_url }}">HLS (m3u8)</div>
                         </div>
                     </div>
                 </div>
@@ -416,6 +418,7 @@
         const selectTrigger = selectWrapper.querySelector('.custom-select-trigger');
         const options = selectWrapper.querySelectorAll('.custom-option');
         const iframeContainer = document.getElementById('iframe-container');
+        let hls = null;
 
         function toggleControlMenu() {
             const menu = document.getElementById('ctrlMenu');
@@ -478,8 +481,18 @@
 
         options.forEach(option => {
             option.addEventListener('click', function() {
+                const type = this.getAttribute('data-type');
                 const url = this.getAttribute('data-value');
                 const audioUrl = this.getAttribute('data-audio');
+
+                if (type === 'm3u8') {
+                    if (confirm("取得に時間がかかりますがよろしいですか？")) {
+                        selectWrapper.classList.remove('open');
+                        fetchM3U8(url);
+                    }
+                    return;
+                }
+
                 if (video.src === url) {
                     selectWrapper.classList.remove('open');
                     return;
@@ -492,6 +505,51 @@
             });
         });
 
+        async function fetchM3U8(ytUrl) {
+            loader.style.display = 'flex';
+            showNotify("M3U8を取得中... (最大30秒)");
+            
+            const controller = new AbortController();
+            const timeoutId = setTimeout(() => controller.abort(), 30000);
+
+            try {
+                const apiUrl = `https://siasama-m3u8.onrender.com/extract?url=${encodeURIComponent(ytUrl)}`;
+                const resp = await fetch(apiUrl, { signal: controller.signal });
+                const data = await resp.json();
+                clearTimeout(timeoutId);
+
+                if (data && data.url) {
+                    playM3U8(data.url);
+                    showNotify("HLS再生を開始します");
+                } else {
+                    throw new Error("Invalid URL");
+                }
+            } catch (err) {
+                loader.style.display = 'none';
+                showNotify("取得に失敗しました。タイムアウトかサーバーエラーです。", true);
+            }
+        }
+
+        function playM3U8(m3u8Url) {
+            if (hls) {
+                hls.destroy();
+            }
+            audio.src = "";
+            if (Hls.isSupported()) {
+                hls = new Hls();
+                hls.loadSource(m3u8Url);
+                hls.attachMedia(video);
+                hls.on(Hls.Events.MANIFEST_PARSED, function() {
+                    video.play();
+                });
+            } else if (video.canPlayType('application/vnd.apple.mpegurl')) {
+                video.src = m3u8Url;
+                video.addEventListener('loadedmetadata', function() {
+                    video.play();
+                });
+            }
+        }
+
         window.addEventListener('click', (e) => {
             if (!selectWrapper.contains(e.target) && !document.getElementById('floating-control').contains(e.target)) {
                 selectWrapper.classList.remove('open');
@@ -501,6 +559,7 @@
         });
 
         function changeQualityLogic(url, audioUrl) {
+            if (hls) { hls.destroy(); hls = null; }
             const currentTime = video.currentTime;
             const isPaused = video.paused;
             loader.style.display = 'flex';
