@@ -241,6 +241,9 @@ async def watch(request: Request, v: str = Query(...), force_instance: str = Que
         author_thumbs = video_data.get("authorThumbnails", [])
         author_icon = author_thumbs[-1]["url"] if author_thumbs else ""
 
+        # 本家URL (m3u8取得用)
+        youtube_url = f"https://www.youtube.com/watch?v={v}"
+
         # レスポンス生成
         response = templates.TemplateResponse("watch.html", {
             "request": request,
@@ -256,7 +259,8 @@ async def watch(request: Request, v: str = Query(...), force_instance: str = Que
             "like_count": video_data.get("likeCount", 0),
             "description": video_data.get("descriptionHtml", "").replace("\n", "<br>"),
             "recommended_videos": recommended,
-            "comments": comment_data.get("comments", []) if not isinstance(comment_data, Exception) else []
+            "comments": comment_data.get("comments", []) if not isinstance(comment_data, Exception) else [],
+            "youtube_url": youtube_url
         })
 
         # 履歴処理
