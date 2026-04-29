@@ -200,15 +200,13 @@ async def watch(request: Request, v: str = Query(...), force_instance: str = Que
         
         adaptive = video_data.get("adaptiveFormats", [])
         
-        # 音声URLの選定を高速化（1パスで検索）
+        # 音声URLの選定を高速化（日本語のみに限定）
         audio_url = None
         for f in adaptive:
             if "audio" in f.get("type", ""):
                 if f.get("language") == "ja":
                     audio_url = f.get("url")
                     break
-                if audio_url is None:
-                    audio_url = f.get("url")
 
         format_streams = video_data.get("formatStreams", [])
         
