@@ -4,13 +4,9 @@ run = "python main.py"
 [nix]
 channel = "stable-23_11"
 
-[packager]
-language = "python3"
+[deployment]
+run = ["python", "main.py"]
 
-[interpreter]
-command = ["python3"]
-
-# プレビューの設定
 [[ports]]
 localPort = 8000
 externalPort = 80
