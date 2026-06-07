@@ -319,8 +319,23 @@ async def channel(request: Request, ucid: str, sort_by: str = "newest", tab: str
         playlists_data = results[3] if not isinstance(results[3], Exception) else {}
         community_data = results[4] if not isinstance(results[4], Exception) else {}
 
+        # 配列（list型）のレスポンスと辞書（dict型）のレスポンスの双方に対応
+        if isinstance(videos_data, list):
+            final_videos = videos_data
+        elif isinstance(videos_data, dict):
+            final_videos = videos_data.get("videos", [])
+        else:
+            final_videos = []
+
+        if isinstance(shorts_data, list):
+            final_shorts = shorts_data
+        elif isinstance(shorts_data, dict):
+            final_shorts = shorts_data.get("videos", [])
+        else:
+            final_shorts = []
+
         playlists = []
-        for pl in playlists_data.get("playlists", []):
+        for pl in playlists_data.get("playlists", []) if isinstance(playlists_data, dict) else (playlists_data if isinstance(playlists_data, list) else []):
             thumb = pl.get("playlistThumbnail", "")
             if thumb and not thumb.startswith("http"):
                 thumb = f"https://img.youtube.com/vi/{thumb}/mqdefault.jpg"
@@ -332,8 +347,9 @@ async def channel(request: Request, ucid: str, sort_by: str = "newest", tab: str
             })
 
         author_name = channel_data.get("author")
-        author_icon = channel_data.get("authorThumbnails", [{"url": ""}])[-1]["url"]
+        author_icon = channel_data.get("authorThumbnails", [{"url": ""}])[-1]["url"] if channel_data.get("authorThumbnails") else ""
 
+        comments_list = community_data.get("comments", []) if isinstance(community_data, dict) else (community_data if isinstance(community_data, list) else [])
         community = [{
             "id": post.get("commentId", ""),
             "content": post.get("contentHtml", "").replace("\n", "<br>"),
@@ -341,7 +357,7 @@ async def channel(request: Request, ucid: str, sort_by: str = "newest", tab: str
             "likes": post.get("likeCount", 0),
             "author": author_name,
             "author_icon": author_icon,
-        } for post in community_data.get("comments", [])]
+        } for post in comments_list]
 
         return templates.TemplateResponse("channel.html", {
             "request": request,
@@ -350,8 +366,8 @@ async def channel(request: Request, ucid: str, sort_by: str = "newest", tab: str
             "author_icon": author_icon,
             "sub_count": channel_data.get("subCountText", "非公開"),
             "description": channel_data.get("descriptionHtml", ""),
-            "videos": videos_data.get("videos", []),
-            "shorts": shorts_data.get("videos", []),
+            "videos": final_videos,
+            "shorts": final_shorts,
             "playlists": playlists,
             "community": community,
             "sort_by": sort_by,
