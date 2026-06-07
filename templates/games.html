@@ -39,18 +39,6 @@
             overflow-x: hidden;
         }
 
-        /* 装飾的な背景のボケ */
-        body::before {
-            content: "";
-            position: fixed;
-            top: -10%;
-            right: -10%;
-            width: 300px;
-            height: 300px;
-            background: radial-gradient(circle, rgba(0, 123, 255, 0.1) 0%, transparent 70%);
-            z-index: -1;
-        }
-
         #top-bar {
             position: fixed;
             top: 0;
@@ -89,7 +77,7 @@
 
         .header-group {
             text-align: center;
-            margin-bottom: 50px;
+            margin-bottom: 40px;
         }
 
         h2 {
@@ -104,12 +92,6 @@
             gap: 15px;
         }
 
-        .subtitle {
-            color: var(--text-sub);
-            margin-top: 10px;
-            font-size: 0.9rem;
-        }
-
         .game-grid {
             display: grid;
             grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
@@ -121,19 +103,15 @@
             border-radius: 20px;
             padding: 30px 20px;
             box-shadow: 0 10px 20px rgba(0, 0, 0, 0.05);
-            transition: all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
             text-decoration: none;
             color: inherit;
             display: flex;
             flex-direction: column;
             align-items: center;
-            position: relative;
             border: 1px solid rgba(255, 255, 255, 0.1);
         }
 
         .game-card:hover {
-            transform: translateY(-10px);
-            box-shadow: 0 20px 40px rgba(0, 123, 255, 0.15);
             border-color: var(--accent-color);
         }
 
@@ -146,11 +124,6 @@
             align-items: center;
             justify-content: center;
             margin-bottom: 20px;
-            transition: transform 0.3s ease;
-        }
-
-        .game-card:hover .icon-wrapper {
-            transform: scale(1.1) rotate(5deg);
         }
 
         .game-card i {
@@ -161,27 +134,6 @@
         .game-card span {
             font-weight: 700;
             font-size: 1.1rem;
-            margin-bottom: 5px;
-        }
-
-        .game-card .category {
-            font-size: 0.75rem;
-            color: var(--text-sub);
-            text-transform: uppercase;
-            letter-spacing: 1px;
-        }
-
-        /* バッジ表示（新着ゲーム用など） */
-        .badge {
-            position: absolute;
-            top: 15px;
-            right: 15px;
-            background: #ff4757;
-            color: white;
-            font-size: 0.7rem;
-            padding: 2px 8px;
-            border-radius: 10px;
-            font-weight: bold;
         }
 
         @media (max-width: 600px) {
@@ -189,16 +141,20 @@
                 grid-template-columns: repeat(2, 1fr);
                 gap: 15px;
             }
+
             .game-card {
                 padding: 20px 10px;
             }
+
             .icon-wrapper {
                 width: 60px;
                 height: 60px;
             }
+
             .game-card i {
                 font-size: 1.8rem;
             }
+
             h2 {
                 font-size: 1.8rem;
             }
@@ -213,8 +169,7 @@
 
     <div id="contents">
         <div class="header-group">
-            <h2><i class="fas fa-rocket"></i> Arcade Space</h2>
-            <p class="subtitle">お気に入りのゲームを選んで遊ぼう</p>
+            <h2><i class="fas fa-rocket"></i> ゲーム</h2>
         </div>
 
         <div class="game-grid">
@@ -223,16 +178,13 @@
                     <i class="fas fa-cubes"></i>
                 </div>
                 <span>ブロックブラスト</span>
-                <div class="category">Puzzle</div>
             </a>
 
             <a href="/tumu.html" class="game-card">
-                <span class="badge">HOT</span>
                 <div class="icon-wrapper">
                     <i class="fas fa-circle"></i>
                 </div>
                 <span>ツムツム</span>
-                <div class="category">Action</div>
             </a>
 
             <a href="/2048.html" class="game-card">
@@ -240,8 +192,7 @@
                     <i class="fas fa-th-large"></i>
                 </div>
                 <span>2048</span>
-                <div class="category">Logic</div>
-            </a>       
+            </a>
         </div>
     </div>
 </body>
