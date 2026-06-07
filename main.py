@@ -14,17 +14,16 @@ templates = Jinja2Templates(directory="templates")
 templates.env.add_extension('jinja2.ext.do')
 
 INVIDIOUS_INSTANCES = [
-    'https://cal1.iv.ggtyler.dev/',
-    'https://eu-proxy.poketube.fun/',
-    'https://invid-api.poketube.fun/',
-    'https://invidious-f5-si.zproxy.org/',
-    'https://invidious.ducks.party/',
-    'https://invidious.esmailelbob.xyz/',
-    'https://invidious.f5.si/',
-    'https://super8.absturztau.be/',
-    'https://usa-proxy2.poketube.fun/',
-    'https://yewtu.be/',
-    'https://yt.omada.cafe/',
+  "https://invidious.ritoge.com",
+  "https://yt.omada.cafe",
+  "https://invidious.darkness.services",
+  "https://invidious.f5.si",
+  "https://invidious.ducks.party",
+  "https://y.com.sb",
+  "https://super8.absturztau.be",
+  "https://inv.zoomerville.com",
+  "https://invidious.nerdvpn.de",
+  "https://inv.thepixora.com"
 ]
 
 limits = httpx.Limits(max_connections=300, max_keepalive_connections=100)
